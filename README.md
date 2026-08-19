@@ -5,10 +5,13 @@ A two-panel [Quickshell](https://quickshell.outfoxxed.me/) widget for
 left, neofetch-style info on the right. Glass cards that follow your Omarchy
 theme live, no restart needed.
 
-|                        |                        |                        |                        |
+| Tokyo Night | White | Vantablack | Catppuccin |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
 | ![Tokyo Night](assets/Tokyo-Night.png) | ![White](assets/White.png) | ![Vantablack](assets/Vantablack.png) | ![Catppuccin](assets/Catppuccin.png) |
-| Tokyo Night | White | Vantablack | Catppuccin |
+
+| Ethereal | Matte Black | Everforest | Osaka Jade |
+| ---------------------- | ---------------------- | ---------------------- | ---------------------- |
+| ![Ethereal](assets/Ethereal.png) | ![Matte Black](assets/Matte-Black.png) | ![Everforest](assets/Everforest.png) | ![Osaka Jade](assets/Osaka-Jade.png) |
 
 ## Features
 
