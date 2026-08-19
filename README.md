@@ -1,4 +1,4 @@
-# dashboard
+# omarchy-dashboard
 
 A two-panel [Quickshell](https://quickshell.outfoxxed.me/) desktop widget for
 [Omarchy](https://omarchy.org) (Hyprland + Arch). A left panel with live
@@ -40,7 +40,7 @@ defaults) or the temperature tiles will just stay blank.
    `dashboard` — Quickshell uses the folder name as the config name:
 
    ```sh
-   git clone <this-repo-url> ~/.config/quickshell/dashboard
+   git clone https://github.com/D3m0nZOnFire/omarchy-dashboard ~/.config/quickshell/dashboard
    ```
 
 2. **Run it**:
