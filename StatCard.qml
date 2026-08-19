@@ -13,20 +13,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 16
-        color: Qt.rgba(0.08, 0.08, 0.10, 0.88)
+        color: Qt.rgba(0.08, 0.08, 0.10, 0.5)
         border.color: Qt.rgba(1, 1, 1, 0.10)
         border.width: 1
-
-        // Top-edge shine (glass refraction effect)
-        Rectangle {
-            anchors {
-                top: parent.top; left: parent.left; right: parent.right
-                topMargin: 1; leftMargin: 1; rightMargin: 1
-            }
-            height: 1
-            color: Qt.rgba(1, 1, 1, 0.08)
-            radius: parent.radius
-        }
     }
 
     // Card label

@@ -74,6 +74,7 @@ Scope {
         implicitWidth:   312
 
         WlrLayershell.layer:         WlrLayer.Bottom
+        WlrLayershell.namespace:     "quickshell:dashboard"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
@@ -468,6 +469,7 @@ Scope {
         implicitWidth:   300
 
         WlrLayershell.layer:         WlrLayer.Bottom
+        WlrLayershell.namespace:     "quickshell:dashboard"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
