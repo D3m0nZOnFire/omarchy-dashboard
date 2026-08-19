@@ -10,12 +10,18 @@ Scope {
     // Machine-specific settings — see Config.qml
     Config { id: config }
 
-    // Shared screen reference — matches the monitor to put the panels on
-    // by resolution (see Config.screenWidth/screenHeight).
+    // Shared screen reference — which output to put the panels on.
+    // 1. Explicit override (Config.screenName), if set.
+    // 2. Auto-detect: prefer a laptop panel (name starting with "eDP").
+    // 3. Fall back to the first screen.
     readonly property var _mainScreen: {
-        for (var i = 0; i < Quickshell.screens.length; i++) {
-            var s = Quickshell.screens[i]
-            if (s.width === config.screenWidth && s.height === config.screenHeight) return s
+        if (config.screenName !== "") {
+            for (var i = 0; i < Quickshell.screens.length; i++) {
+                if (Quickshell.screens[i].name === config.screenName) return Quickshell.screens[i]
+            }
+        }
+        for (var j = 0; j < Quickshell.screens.length; j++) {
+            if (Quickshell.screens[j].name.startsWith("eDP")) return Quickshell.screens[j]
         }
         return Quickshell.screens[0]
     }
@@ -27,6 +33,12 @@ Scope {
     Theme { id: theme }
 
     // ── Helpers (at Scope level so all children can resolve them) ─
+    // Theme foreground at a given alpha (defaults to fully opaque) — use
+    // this instead of hardcoding white/rgba(1,1,1,x) so text follows the
+    // active Omarchy theme.
+    function _fg(a) {
+        return Qt.rgba(theme.foreground.r, theme.foreground.g, theme.foreground.b, a === undefined ? 1 : a)
+    }
     function _batTimeText() {
         if (!UPower.displayDevice) return ""
         const st = UPower.displayDevice.state
@@ -100,6 +112,7 @@ Scope {
                 // ── CPU ──────────────────────────────────────────────
                 StatCard {
                     label: "CPU"
+                    theme: theme
                     Layout.fillWidth: true
 
                     // Main row: ring + stats + sparkline
@@ -108,6 +121,8 @@ Scope {
                         spacing: 10
 
                         RingChart {
+                            textColor: theme.foreground
+                            trackColor: _fg(0.08)
                             value:     metrics.cpuPercent
                             fillColor: metrics.cpuPercent > 95 ? theme.red
                                      : metrics.cpuPercent > 80 ? theme.orange : theme.blue
@@ -121,13 +136,13 @@ Scope {
 
                             Text {
                                 text:           Math.round(metrics.cpuPercent) + "%"
-                                color:          "white"
+                                color:          _fg()
                                 font.pixelSize: 20
                                 font.weight:    Font.Light
                             }
                             Text {
                                 text:           "Max core: " + metrics.cpuMaxCoreTemp.toFixed(0) + "°C"
-                                color:          Qt.rgba(1, 1, 1, 0.35)
+                                color:          _fg(0.35)
                                 font.pixelSize: 9
                                 visible:        metrics.cpuMaxCoreTemp > 0
                             }
@@ -150,11 +165,13 @@ Scope {
                         property color colorLow:  theme.blue
                         property color colorMid:  theme.orange
                         property color colorHigh: theme.red
+                        property color colorTrack: _fg(0.07)
                         onDataChanged:      requestPaint()
                         onWidthChanged:      requestPaint()
                         onColorLowChanged:   requestPaint()
                         onColorMidChanged:   requestPaint()
                         onColorHighChanged:  requestPaint()
+                        onColorTrackChanged: requestPaint()
                         onPaint: {
                             var ctx = getContext("2d")
                             ctx.clearRect(0, 0, width, height)
@@ -167,7 +184,7 @@ Scope {
                                 const v = cores[i] || 0
                                 const x = i * (barW + gap)
                                 // Background track
-                                ctx.fillStyle = "rgba(255,255,255,0.07)"
+                                ctx.fillStyle = colorTrack
                                 ctx.fillRect(x, 0, barW, height)
                                 // Value fill from bottom
                                 if (v > 0) {
@@ -183,6 +200,7 @@ Scope {
                 // ── MEMORY ───────────────────────────────────────────
                 StatCard {
                     label: "Memory"
+                    theme: theme
                     Layout.fillWidth: true
 
                     RowLayout {
@@ -190,6 +208,8 @@ Scope {
                         spacing: 10
 
                         RingChart {
+                            textColor: theme.foreground
+                            trackColor: _fg(0.08)
                             value:     metrics.ramPercent
                             fillColor: metrics.ramPercent > 90 ? theme.red
                                      : metrics.ramPercent > 75 ? theme.orange : theme.accent
@@ -200,13 +220,13 @@ Scope {
                             spacing: 1
                             Text {
                                 text:           metrics.ramUsedGB.toFixed(1) + " GB"
-                                color:          "white"
+                                color:          _fg()
                                 font.pixelSize: 20
                                 font.weight:    Font.Light
                             }
                             Text {
                                 text:           "of " + metrics.ramTotalGB.toFixed(0) + " GB"
-                                color:          Qt.rgba(1, 1, 1, 0.35)
+                                color:          _fg(0.35)
                                 font.pixelSize: 9
                             }
                             SparkLine {
@@ -221,6 +241,7 @@ Scope {
                 // ── GPU ──────────────────────────────────────────────
                 StatCard {
                     label: "GPU" + (metrics.gpuName ? " · " + metrics.gpuName : "")
+                    theme: theme
                     Layout.fillWidth: true
 
                     RowLayout {
@@ -228,6 +249,8 @@ Scope {
                         spacing: 10
 
                         RingChart {
+                            textColor: theme.foreground
+                            trackColor: _fg(0.08)
                             value:     metrics.gpuPercent
                             fillColor: metrics.gpuPercent > 90 ? theme.red
                                      : metrics.gpuPercent > 70 ? theme.orange : theme.accent
@@ -239,18 +262,18 @@ Scope {
                             spacing: 1
                             Text {
                                 text:           metrics.gpuPercent + "%"
-                                color:          "white"
+                                color:          _fg()
                                 font.pixelSize: 20
                                 font.weight:    Font.Light
                             }
                             Text {
                                 text:           metrics.vramUsedMB + " / " + metrics.vramTotalMB + " MB"
-                                color:          Qt.rgba(1, 1, 1, 0.35)
+                                color:          _fg(0.35)
                                 font.pixelSize: 9
                             }
                             Text {
                                 text:           metrics.gpuPowerW.toFixed(0) + " W"
-                                color:          Qt.rgba(1, 1, 1, 0.5)
+                                color:          _fg(0.5)
                                 font.pixelSize: 11
                                 font.weight:    Font.Medium
                             }
@@ -266,6 +289,7 @@ Scope {
                 // ── BATTERY ──────────────────────────────────────────
                 StatCard {
                     label: "Battery"
+                    theme: theme
                     Layout.fillWidth: true
                     visible: UPower.displayDevice !== null
 
@@ -274,6 +298,8 @@ Scope {
                         spacing: 10
 
                         RingChart {
+                            textColor: theme.foreground
+                            trackColor: _fg(0.08)
                             value: UPower.displayDevice
                                    ? UPower.displayDevice.percentage * 100 : 0
                             fillColor: {
@@ -303,11 +329,11 @@ Scope {
                                     return "—"
                                 }
                                 color: {
-                                    if (!UPower.displayDevice) return Qt.rgba(1,1,1,0.65)
+                                    if (!UPower.displayDevice) return _fg(0.65)
                                     const st = UPower.displayDevice.state
                                     if (st === UPowerDeviceState.FullyCharged ||
                                         st === UPowerDeviceState.Charging) return theme.accent
-                                    return "white"
+                                    return _fg()
                                 }
                                 font.pixelSize: 13
                                 font.weight:    Font.Medium
@@ -316,7 +342,7 @@ Scope {
                             Text {
                                 visible: UPower.displayDevice !== null && _batTimeText() !== ""
                                 text:    _batTimeText()
-                                color:   Qt.rgba(1, 1, 1, 0.5)
+                                color:   _fg(0.5)
                                 font.pixelSize: 10
                             }
 
@@ -325,7 +351,7 @@ Scope {
                                          UPower.displayDevice.changeRate > 0
                                 text:    (UPower.displayDevice
                                           ? UPower.displayDevice.changeRate : 0).toFixed(1) + " W"
-                                color:   Qt.rgba(1, 1, 1, 0.35)
+                                color:   _fg(0.35)
                                 font.pixelSize: 9
                             }
                         }
@@ -335,12 +361,15 @@ Scope {
                 // ── DISK ─────────────────────────────────────────────
                 StatCard {
                     label: "Disk  /"
+                    theme: theme
                     Layout.fillWidth: true
 
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
                         RingChart {
+                            textColor: theme.foreground
+                            trackColor: _fg(0.08)
                             value:     metrics.diskPercent
                             fillColor: metrics.diskPercent > 90 ? theme.red
                                      : metrics.diskPercent > 75 ? theme.orange : theme.accent
@@ -351,13 +380,13 @@ Scope {
                             spacing: 1
                             Text {
                                 text:           metrics.diskUsedGB.toFixed(0) + " GB"
-                                color:          "white"
+                                color:          _fg()
                                 font.pixelSize: 20
                                 font.weight:    Font.Light
                             }
                             Text {
                                 text:           "of " + metrics.diskTotalGB.toFixed(0) + " GB · " + metrics.diskPercent + "%"
-                                color:          Qt.rgba(1, 1, 1, 0.35)
+                                color:          _fg(0.35)
                                 font.pixelSize: 9
                             }
                         }
@@ -367,6 +396,7 @@ Scope {
                 // ── NETWORK ──────────────────────────────────────────
                 StatCard {
                     label: "Network"
+                    theme: theme
                     Layout.fillWidth: true
 
                     ColumnLayout {
@@ -378,7 +408,7 @@ Scope {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 1
-                                Text { text:"↓  RX"; color:Qt.rgba(1,1,1,0.35); font.pixelSize:9 }
+                                Text { text:"↓  RX"; color:_fg(0.35); font.pixelSize:9 }
                                 Text {
                                     text:           _fmtNet(metrics.netRxKBs)
                                     color:          theme.blue
@@ -389,7 +419,7 @@ Scope {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 1
-                                Text { text:"↑  TX"; color:Qt.rgba(1,1,1,0.35); font.pixelSize:9 }
+                                Text { text:"↑  TX"; color:_fg(0.35); font.pixelSize:9 }
                                 Text {
                                     text:           _fmtNet(metrics.netTxKBs)
                                     color:          theme.orange
@@ -412,6 +442,7 @@ Scope {
                 // ── PING ─────────────────────────────────────────────
                 StatCard {
                     label: "Ping · " + config.pingHost
+                    theme: theme
                     Layout.fillWidth: true
 
                     ColumnLayout {
@@ -431,7 +462,7 @@ Scope {
                             Text {
                                 text: metrics.pingMs < 0 ? "Timeout"
                                     : metrics.pingMs.toFixed(1) + " ms"
-                                color: metrics.pingMs < 0   ? Qt.rgba(1,1,1,0.35)
+                                color: metrics.pingMs < 0   ? _fg(0.35)
                                      : metrics.pingMs < 30  ? theme.accent
                                      : metrics.pingMs < 100 ? theme.orange : theme.red
                                 font.pixelSize: 16
@@ -487,6 +518,7 @@ Scope {
             StatCard {
                 id: sysCard
                 label: "System"
+                theme: theme
                 anchors { left: parent.left; right: parent.right }
 
                 SysInfoWidget {
@@ -494,6 +526,7 @@ Scope {
                     ramInfo: metrics.ramTotalGB.toFixed(0) + " GB"
                     gpuInfo: metrics.gpuName || "—"
                     accentColor: theme.accent
+                    textColor: theme.foreground
                 }
             }
         }

@@ -6,6 +6,7 @@ Canvas {
     property real value: 0          // 0–100
     property color fillColor: "#3478F6"
     property color trackColor: Qt.rgba(1, 1, 1, 0.08)
+    property color textColor: "white"
     property real lineWidth: 8
     property string centerText: Math.round(value) + "%"
     property string subText: ""    // optional second line (e.g. "44°C")
@@ -17,6 +18,7 @@ Canvas {
     onFillColorChanged: requestPaint()
     onSubTextChanged:   requestPaint()
     onCenterTextChanged: requestPaint()
+    onTextColorChanged: requestPaint()
 
     onPaint: {
         var ctx = getContext("2d")
@@ -50,13 +52,13 @@ Canvas {
         const hasSubText = root.subText.length > 0
         ctx.textAlign    = "center"
         ctx.textBaseline = "middle"
-        ctx.fillStyle    = "white"
+        ctx.fillStyle    = root.textColor
         ctx.font         = "600 14px sans-serif"
         ctx.fillText(root.centerText, cx, cy + (hasSubText ? -7 : 0))
 
         if (hasSubText) {
             ctx.font      = "10px sans-serif"
-            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.5)
+            ctx.fillStyle = Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.5)
             ctx.fillText(root.subText, cx, cy + 9)
         }
     }

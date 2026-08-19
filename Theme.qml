@@ -10,6 +10,9 @@ Item {
 
     property string mode: "dark"
 
+    property color background: "#141416"
+    property color foreground: "#FFFFFF"
+
     property color accent:  "#3478F6"
     property color red:     "#FF453A"
     property color orange:  "#FF9F0A"
@@ -25,6 +28,8 @@ Item {
     function _apply(map) {
         if (!map.accent) return   // incomplete read (e.g. mid theme-swap) — ignore
         mode          = map.mode          || mode
+        background    = map.background    || background
+        foreground    = map.foreground    || foreground
         accent        = map.accent        || accent
         red           = map.red           || red
         orange        = map.orange        || orange

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 import Quickshell.Io
 
 Item {
@@ -10,6 +11,7 @@ Item {
     property string ramInfo:    "— GB"
     property string gpuInfo:    "—"
     property color  accentColor: "#1793D1"   // default = Arch blue
+    property color  textColor:   "white"
 
     // ── Dynamic state ──────────────────────────────────────────
     property string _hostname: ""
@@ -95,13 +97,23 @@ Item {
             Layout.fillWidth: true
             spacing: 14
 
-            // Omarchy logo
-            Image {
-                id: omarchyLogo
-                width: 36; height: 36
-                source: "file:///usr/share/omarchy/icon.png"
-                fillMode: Image.PreserveAspectFit
-                sourceSize: Qt.size(72, 72)
+            // Omarchy logo — recolored to the active theme's accent
+            Item {
+                width: 72; height: 72
+
+                Image {
+                    id: omarchyLogo
+                    anchors.fill: parent
+                    source: "file:///usr/share/omarchy/icon.png"
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize: Qt.size(72, 72)
+                    visible: false
+                }
+                ColorOverlay {
+                    anchors.fill: omarchyLogo
+                    source: omarchyLogo
+                    color: root.accentColor
+                }
             }
 
             ColumnLayout {
@@ -110,7 +122,7 @@ Item {
 
                 Text {
                     text: root._hostname || "—"
-                    color: "white"
+                    color: root.textColor
                     font.pixelSize: 20
                     font.weight: Font.SemiBold ?? 63
                     elide: Text.ElideRight
@@ -118,7 +130,7 @@ Item {
                 }
                 Text {
                     text: "arch@" + (root._hostname || "—")
-                    color: Qt.rgba(1, 1, 1, 0.35)
+                    color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.35)
                     font.pixelSize: 10
                 }
 
@@ -129,7 +141,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.08)
+            color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.08)
         }
 
         // ── Info grid ────────────────────────────────────────
@@ -143,33 +155,33 @@ Item {
             // Listed in classic neofetch order
 
             Text { text: "OS";         color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: "Arch Linux"; color: "white";   font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+            Text { text: "Arch Linux"; color: root.textColor;   font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "Kernel";     color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root._kernel || "—"; color: "white"; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+            Text { text: root._kernel || "—"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "Uptime";     color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root._uptime || "—"; color: "white"; font.pixelSize: 11; Layout.fillWidth: true }
+            Text { text: root._uptime || "—"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true }
 
             Text { text: "WM";         color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: "Hyprland";   color: "white";   font.pixelSize: 11 }
+            Text { text: "Hyprland";   color: root.textColor;   font.pixelSize: 11 }
 
             Text { text: "Theme";      color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root._theme;  color: "white";   font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+            Text { text: root._theme;  color: root.textColor;   font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "CPU";        color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
             Text {
                 text: root._cpu || "—"
-                color: "white"; font.pixelSize: 11
+                color: root.textColor; font.pixelSize: 11
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
 
             Text { text: "GPU";        color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root.gpuInfo; color: "white"; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+            Text { text: root.gpuInfo; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "Memory";     color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root.ramInfo; color: "white";   font.pixelSize: 11; Layout.fillWidth: true }
+            Text { text: root.ramInfo; color: root.textColor;   font.pixelSize: 11; Layout.fillWidth: true }
         }
     }
 }

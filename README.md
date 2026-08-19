@@ -5,10 +5,10 @@ A two-panel [Quickshell](https://quickshell.outfoxxed.me/) widget for
 left, neofetch-style info on the right. Glass cards that follow your Omarchy
 theme live, no restart needed.
 
-|                        |                        |                        |
-| ---------------------- | ---------------------- | ---------------------- |
-| ![Ethereal](assets/Ethereal.png) | ![Matte Black](assets/Matte-Black.png) | ![Tokyo Night](assets/Tokyo-Night.png) |
-| Ethereal | Matte Black | Tokyo Night |
+|                        |                        |                        |                        |
+| ---------------------- | ---------------------- | ---------------------- | ---------------------- |
+| ![Tokyo Night](assets/Tokyo-Night.png) | ![White](assets/White.png) | ![Vantablack](assets/Vantablack.png) | ![Catppuccin](assets/Catppuccin.png) |
+| Tokyo Night | White | Vantablack | Catppuccin |
 
 ## Features
 
@@ -25,6 +25,7 @@ theme live, no restart needed.
 | --- | --- | --- |
 | [Quickshell](https://quickshell.outfoxxed.me/) | Runs the shell | `quickshell-git` (AUR) |
 | Hyprland + [Omarchy](https://omarchy.org) | Live theming | ships with Omarchy |
+| Qt5Compat | Theme-colored Omarchy logo (`ColorOverlay`) | `qt6-5compat` |
 | `nvidia-smi` | GPU stats (NVIDIA only) | `nvidia-utils` |
 | `lm-sensors` | CPU temps | `lm_sensors` |
 | `inotify-tools` | Live theme/state watching | `inotify-tools` |
@@ -50,19 +51,10 @@ tiles stay blank.
    Once it looks right, run detached (`qs -c dashboard -d`) or add to
    Hyprland's `exec-once`.
 
-3. Edit [`Config.qml`](Config.qml) for your machine:
-
-   | Property | What it does | Default |
-   | --- | --- | --- |
-   | `screenWidth`, `screenHeight` | Which monitor to attach to | `1600` × `1000` |
-   | `pingHost` | Ping target for the latency tile | `1.1.1.1` |
-
-   Single monitor? Leave it — it falls back automatically.
-
-4. **NVIDIA only**: GPU stats come from `nvidia-smi` (`SystemMetrics.qml`).
+3. **NVIDIA only**: GPU stats come from `nvidia-smi` (`SystemMetrics.qml`).
    On AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
 
-5. **Enable Hyprland background blur** — required. The cards are translucent
+4. **Enable Hyprland background blur** — required. The cards are translucent
    by design; without blur they're just washed-out gray boxes.
 
    Omarchy (`~/.config/hypr/looknfeel.lua`):
@@ -97,14 +89,20 @@ tiles stay blank.
 
 QML edits hot-reload while `qs -c dashboard` is running — no restart needed.
 
+That's it — no config file needed. The panels attach to your laptop panel
+automatically (or the first screen, if there isn't one). [`Config.qml`](Config.qml)
+is only for edge cases: `screenName` to pin the panels to a specific output on
+a multi-monitor desktop, or `pingHost` if `1.1.1.1` doesn't work for you.
+
 ## Troubleshooting
 
 - **Blank/zero tiles**: test the underlying command directly (`nvidia-smi`,
   `sensors`, `ping -c1 1.1.1.1`, `df -k /`).
 - **Theme doesn't update**: check `inotifywait` is installed and
   `omarchy-theme-color --all` works.
-- **Wrong monitor**: check `screenWidth`/`screenHeight` against `hyprctl monitors`.
-- **Flat gray cards, no blur**: step 5 not done, or reload didn't take —
+- **Wrong monitor**: set `screenName` in `Config.qml` to the output you want
+  (see `hyprctl monitors` for names).
+- **Flat gray cards, no blur**: step 4 not done, or reload didn't take —
   check `hyprctl getoption decoration:blur:enabled`.
 
 ## License
