@@ -3,7 +3,9 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Widgets
 import Quickshell.Services.UPower
+import Quickshell.Services.Mpris
 
 Scope {
     id: shell
@@ -42,7 +44,7 @@ Scope {
     // ── Tile order — which stat tiles show, and in what order ──────
     // Persisted to disk so a drag-reorder (via double-click → modal)
     // survives restarts.
-    readonly property var defaultTileOrder: ["cpu", "memory", "gpu", "battery", "disk", "network", "ping"]
+    readonly property var defaultTileOrder: ["cpu", "memory", "gpu", "battery", "disk", "network", "ping", "media"]
     readonly property var tileLabels: ({
         cpu:     "CPU",
         memory:  "Memory",
@@ -51,8 +53,14 @@ Scope {
         disk:    "Disk",
         network: "Network",
         ping:    "Ping",
+        media:   "Media",
     })
     property var tileOrder: defaultTileOrder
+    property var hiddenTiles: []
+    // What the left panel actually renders — tileOrder minus hidden tiles.
+    readonly property var visibleTileOrder: shell.tileOrder.filter(function(id) {
+        return shell.hiddenTiles.indexOf(id) === -1
+    })
 
     // Reconciles the saved order against the known tile ids — drops
     // anything unrecognized, appends any tile missing from a stale file.
@@ -74,10 +82,18 @@ Scope {
     }
     function _applyLoadedTileOrder() {
         shell.tileOrder = shell._reconcileTileOrder(tileOrderAdapter.order || [])
+        shell.hiddenTiles = (tileOrderAdapter.hidden || []).filter(function(id) {
+            return shell.defaultTileOrder.indexOf(id) !== -1
+        })
     }
     function saveTileOrder(newOrder) {
         shell.tileOrder = newOrder
         tileOrderAdapter.order = newOrder
+        tileOrderFile.writeAdapter()
+    }
+    function saveHiddenTiles(newHidden) {
+        shell.hiddenTiles = newHidden
+        tileOrderAdapter.hidden = newHidden
         tileOrderFile.writeAdapter()
     }
 
@@ -92,6 +108,7 @@ Scope {
         JsonAdapter {
             id: tileOrderAdapter
             property var order: shell.defaultTileOrder
+            property var hidden: []
         }
     }
 
@@ -125,6 +142,13 @@ Scope {
         if (kbs >= 1024) return (kbs / 1024).toFixed(1) + " MB/s"
         return Math.round(kbs) + " KB/s"
     }
+    function _fmtDuration(secs) {
+        if (!secs || secs < 0) return "0:00"
+        const total = Math.floor(secs)
+        const m = Math.floor(total / 60)
+        const s = total % 60
+        return m + ":" + (s < 10 ? "0" : "") + s
+    }
     function _pingMax() {
         var m = 50
         var h = metrics.pingHistory
@@ -146,7 +170,7 @@ Scope {
 
         screen:          shell._mainScreen
         anchors {        top: true; left: true; bottom: true; right: false }
-        implicitWidth:   312
+        implicitWidth:   tileFlow.width + 16   // 8 left + 8 right margins
 
         WlrLayershell.layer:         WlrLayer.Bottom
         WlrLayershell.namespace:     "quickshell:dashboard"
@@ -154,55 +178,59 @@ Scope {
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
 
-        // Double-click anywhere on the panel to reorder tiles. Sits behind
-        // the content (cards have no mouse handlers of their own, so clicks
-        // fall through to this).
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            onDoubleClicked: reorderModal.open()
-        }
-
-        // ── Two-column layout ─────────────────────────────────────────
-        RowLayout {
+        // ── Tile columns ──────────────────────────────────────────────
+        // Column count is dynamic: tiles stack top-to-bottom until the
+        // next one wouldn't fit the screen's height, then a new column
+        // starts to the right. Screen height is read live from `screen`,
+        // so this reflows if the dashboard ever moves to a different
+        // monitor. No scrolling, no clipped/unreachable tiles.
+        Flow {
+            id: tileFlow
             anchors {
-                top: parent.top;    topMargin:    40
-                left: parent.left;  leftMargin:   8
-                bottom: parent.bottom; bottomMargin: 8
+                top: parent.top;   topMargin:  40
+                left: parent.left; leftMargin: 8
             }
-            width: 296   // 312 - 8 left - 8 right
+            height: Math.max(1, (leftPanel.screen ? leftPanel.screen.height : 1000) - 40 - 8)
+            flow: Flow.TopToBottom
             spacing: 12
 
-            // ════════════════════════════════════════════════════════
-            //  COLUMN 1 — System Stats
-            // ════════════════════════════════════════════════════════
-            ColumnLayout {
-                id: tileColumn
-                Layout.preferredWidth: 296
-                Layout.fillHeight: true
-                spacing: 10
+            // Each tile is a Component, keyed by id, instantiated in
+            // whatever order shell.tileOrder says (see Repeater below).
+            property var tileMap: ({
+                cpu:     cpuTile,
+                memory:  memoryTile,
+                gpu:     gpuTile,
+                battery: batteryTile,
+                disk:    diskTile,
+                network: networkTile,
+                ping:    pingTile,
+                media:   mediaTile,
+            })
 
-                // Each tile is a Component, keyed by id, instantiated in
-                // whatever order shell.tileOrder says (see Repeater below).
-                property var tileMap: ({
-                    cpu:     cpuTile,
-                    memory:  memoryTile,
-                    gpu:     gpuTile,
-                    battery: batteryTile,
-                    disk:    diskTile,
-                    network: networkTile,
-                    ping:    pingTile,
-                })
+            Repeater {
+                model: shell.visibleTileOrder
+                delegate: Item {
+                    width: 296
+                    height: tileLoader.height
 
-                Repeater {
-                    model: shell.tileOrder
-                    delegate: Loader {
-                        Layout.fillWidth: true
-                        sourceComponent: tileColumn.tileMap[modelData]
+                    // Double-click the tile itself (not the empty panel
+                    // around it) to reorder tiles. Sits behind the loaded
+                    // card's own content, so any interactive control inside
+                    // it (e.g. the media tile's playback buttons) still
+                    // takes priority.
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton
+                        onDoubleClicked: reorderModal.open()
+                    }
+
+                    Loader {
+                        id: tileLoader
+                        width: parent.width
+                        sourceComponent: tileFlow.tileMap[modelData]
                     }
                 }
-
-                Item { Layout.fillHeight: true }
+            }
 
                 // ── CPU ──────────────────────────────────────────────
                 Component { id: cpuTile; StatCard {
@@ -575,7 +603,196 @@ Scope {
                         }
                     }
                 } }
-            }
+
+                // ── MEDIA (MPRIS "Now Playing") ───────────────────────
+                Component { id: mediaTile; StatCard {
+                    id: mediaCard
+                    theme: shell._theme
+                    Layout.fillWidth: true
+
+                    // Bumped whenever the player list or a player's playing
+                    // state changes, to force activePlayer to re-pick — see
+                    // the Connections/Instantiator below. Per-track fields
+                    // (title, position, art, ...) update on their own via
+                    // normal property bindings once a player is selected.
+                    property int _mpTick: 0
+                    property var activePlayer: {
+                        _mpTick
+                        const list = Mpris.players ? Mpris.players.values : []
+                        for (var i = 0; i < list.length; i++) if (list[i].isPlaying) return list[i]
+                        for (var i = 0; i < list.length; i++) if (list[i].trackTitle) return list[i]
+                        return null
+                    }
+                    readonly property bool hasMedia: activePlayer !== null &&
+                        (activePlayer.trackTitle !== "" || activePlayer.trackArtist !== "")
+
+                    label: "Media" + (hasMedia && activePlayer.identity ? " · " + activePlayer.identity : "")
+
+                    // `Mpris.players` is a constant model reference (no
+                    // playersChanged signal) — a player appearing/disappearing
+                    // is instead caught by this delegate's own creation/
+                    // destruction, alongside isPlaying flips on existing ones.
+                    Instantiator {
+                        model: Mpris.players
+                        delegate: Connections {
+                            required property var modelData
+                            target: modelData
+                            function onIsPlayingChanged() { if (mediaCard) mediaCard._mpTick++ }
+                            Component.onCompleted: { if (mediaCard) mediaCard._mpTick++ }
+                            // Guarded: if the whole tile is being torn down
+                            // (e.g. hidden via the reorder modal), mediaCard
+                            // may already be gone by the time this fires.
+                            Component.onDestruction: { if (mediaCard) mediaCard._mpTick++ }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: !mediaCard.hasMedia
+                        text: "Nothing playing"
+                        color: _fg(0.35)
+                        font.pixelSize: 12
+                        font.italic: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: mediaCard.hasMedia
+                        spacing: 10
+
+                        ClippingRectangle {
+                            width: 56; height: 56
+                            radius: 8
+                            color: _fg(0.06)
+
+                            Image {
+                                anchors.fill: parent
+                                source: mediaCard.activePlayer && mediaCard.activePlayer.trackArtUrl ? mediaCard.activePlayer.trackArtUrl : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                visible: status === Image.Ready
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: !(mediaCard.activePlayer && mediaCard.activePlayer.trackArtUrl)
+                                text: "♪"
+                                color: _fg(0.25)
+                                font.pixelSize: 22
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: mediaCard.activePlayer ? (mediaCard.activePlayer.trackTitle || "—") : ""
+                                color: _fg()
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: mediaCard.activePlayer ? (mediaCard.activePlayer.trackArtist || "") : ""
+                                color: _fg(0.5)
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.topMargin: 4
+                                height: 3
+                                Rectangle { anchors.fill: parent; radius: 1.5; color: _fg(0.1) }
+                                Rectangle {
+                                    readonly property real ratio: mediaCard.activePlayer && mediaCard.activePlayer.length > 0
+                                        ? mediaCard.activePlayer.position / mediaCard.activePlayer.length : 0
+                                    width: parent.width * Math.max(0, Math.min(1, ratio))
+                                    height: parent.height
+                                    radius: 1.5
+                                    color: theme.accent
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: mediaCard.activePlayer ? _fmtDuration(mediaCard.activePlayer.position) : ""
+                                    color: _fg(0.35)
+                                    font.pixelSize: 9
+                                }
+                                Item { Layout.fillWidth: true }
+                                Text {
+                                    text: mediaCard.activePlayer && mediaCard.activePlayer.length > 0 ? _fmtDuration(mediaCard.activePlayer.length) : ""
+                                    color: _fg(0.35)
+                                    font.pixelSize: 9
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: mediaCard.hasMedia
+                        spacing: 20
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            text: "◀◀"
+                            font.pixelSize: 12
+                            color: mediaCard.activePlayer && mediaCard.activePlayer.canGoPrevious ? _fg(0.8) : _fg(0.2)
+                            MouseArea {
+                                anchors { fill: parent; margins: -6 }
+                                enabled: mediaCard.activePlayer && mediaCard.activePlayer.canGoPrevious
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mediaCard.activePlayer.previous()
+                            }
+                        }
+                        Item {
+                            // Drawn instead of using the "⏸" glyph — that
+                            // codepoint defaults to colored emoji presentation
+                            // on most systems, clashing with the plain-text
+                            // triangles used everywhere else on this tile.
+                            width: 15; height: 15
+                            Text {
+                                anchors.centerIn: parent
+                                visible: !(mediaCard.activePlayer && mediaCard.activePlayer.isPlaying)
+                                text: "▶"
+                                font.pixelSize: 15
+                                color: _fg(0.9)
+                            }
+                            Row {
+                                anchors.centerIn: parent
+                                visible: mediaCard.activePlayer && mediaCard.activePlayer.isPlaying
+                                spacing: 3
+                                Rectangle { width: 4; height: 13; radius: 1; color: _fg(0.9) }
+                                Rectangle { width: 4; height: 13; radius: 1; color: _fg(0.9) }
+                            }
+                            MouseArea {
+                                anchors { fill: parent; margins: -6 }
+                                enabled: mediaCard.activePlayer && mediaCard.activePlayer.canTogglePlaying
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mediaCard.activePlayer.togglePlaying()
+                            }
+                        }
+                        Text {
+                            text: "▶▶"
+                            font.pixelSize: 12
+                            color: mediaCard.activePlayer && mediaCard.activePlayer.canGoNext ? _fg(0.8) : _fg(0.2)
+                            MouseArea {
+                                anchors { fill: parent; margins: -6 }
+                                enabled: mediaCard.activePlayer && mediaCard.activePlayer.canGoNext
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mediaCard.activePlayer.next()
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+                } }
         }
 
         // ── Left panel helpers ────────────────────────────────────────
@@ -586,7 +803,9 @@ Scope {
             theme: theme
             tileLabels: shell.tileLabels
             order: shell.tileOrder
+            hiddenTiles: shell.hiddenTiles
             onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
+            onVisibilityEdited: newHidden => shell.saveHiddenTiles(newHidden)
         }
     }
 
@@ -608,12 +827,6 @@ Scope {
 
         // Height tracks card content
         implicitHeight: sysCard.implicitHeight + 40 + 8
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            onDoubleClicked: reorderModal.open()
-        }
 
         Item {
             anchors {

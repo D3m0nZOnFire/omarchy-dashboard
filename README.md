@@ -19,8 +19,20 @@ theme live, no restart needed.
 - Memory, disk, and NVIDIA GPU usage (utilization, VRAM, temp, power draw)
 - Battery status with time-to-full/empty (UPower)
 - Network throughput (RX/TX) and ping, both with sparklines
+- Now-playing media tile (MPRIS) — art, title/artist, progress bar, and
+  prev/play-pause/next controls, for whichever player is currently active
 - Neofetch-style system info panel (host, kernel, uptime, WM, theme, CPU, GPU, memory)
 - Live theme sync with Omarchy
+- Drag-to-reorder and hide/show any tile — see below
+- Columns adapt automatically: if the tiles don't fit your screen's height,
+  extras overflow into a new column instead of running off-screen
+
+## Reordering & hiding tiles
+
+Double-click any tile to open the reorder panel. Drag tiles up/down to
+reorder them, or drag one across into the Hidden column to hide it (drag it
+back to bring it back). Changes apply immediately and are remembered
+automatically — no config file to edit.
 
 ## Dependencies
 
@@ -107,6 +119,9 @@ a multi-monitor desktop, or `pingHost` if `1.1.1.1` doesn't work for you.
   (see `hyprctl monitors` for names).
 - **Flat gray cards, no blur**: step 4 not done, or reload didn't take —
   check `hyprctl getoption decoration:blur:enabled`.
+- **Media tile says "Nothing playing"**: it needs a running player that
+  exposes MPRIS — most do (Spotify, browsers playing audio/video, VLC, mpv
+  with the `mpris` plugin, etc.).
 
 ## License
 

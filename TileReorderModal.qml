@@ -3,18 +3,23 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 
-// Full-screen overlay opened by double-clicking the dashboard. Lets you
-// drag the stat tiles into whatever order you want; changes are reported
-// live via orderEdited() so the caller can persist + re-apply them.
+// Full-screen overlay opened by double-clicking the dashboard. Shown tiles
+// sit in a column on the left, hidden ones in a column on the right — drag
+// a tile across the gap to hide/show it, drag within a column to reorder.
+// Each zone is always exactly one column (it never wraps into more), so
+// the modal's width is fixed and only its height adapts to whichever
+// column currently has more tiles.
 PanelWindow {
     id: modal
 
     property var theme: null
     property var tileLabels: ({})
-    // Seed order, read once each time the modal opens.
+    // Seed order/hidden set, read once each time the modal opens.
     property var order: []
+    property var hiddenTiles: []
 
     signal orderEdited(var newOrder)
+    signal visibilityEdited(var newHidden)
 
     function open()  { opened = true }
     function close() { opened = false }
@@ -27,40 +32,75 @@ PanelWindow {
     color: "transparent"
 
     WlrLayershell.layer:         WlrLayer.Overlay
-    WlrLayershell.namespace:     "quickshell:dashboard:reorder"
-    WlrLayershell.keyboardFocus: modal.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    // Same namespace as the dashboard panels (shell.qml) — Hyprland's
+    // frosted-glass blur rule (~/.config/hypr/looknfeel.lua) is scoped to
+    // this exact namespace, so reusing it is what gives the card the same
+    // blurred-glass look as the tiles instead of a flat fill.
+    WlrLayershell.namespace:     "quickshell:dashboard"
+    // OnDemand (not Exclusive) so this doesn't steal keyboard input away
+    // from whatever else is running while it's open.
+    WlrLayershell.keyboardFocus: modal.opened ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+
+    // Restricts the surface's clickable/input area to just the card —
+    // this surface still spans the whole screen (so it can center the
+    // card), but without this, it would swallow every click on the
+    // screen, blocking interaction with whatever's underneath even where
+    // the modal is fully transparent.
+    mask: Region { item: card }
 
     function _fg(a) {
         if (!modal.theme) return Qt.rgba(1, 1, 1, a === undefined ? 1 : a)
         return Qt.rgba(modal.theme.foreground.r, modal.theme.foreground.g, modal.theme.foreground.b, a === undefined ? 1 : a)
     }
+    function _luminance(c) {
+        return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+    }
+    // Text color for content sitting on theme.accent (e.g. the Done button)
+    // — picks whichever of the theme's foreground/background contrasts more
+    // with accent, since accent's own lightness varies a lot theme to theme.
+    function _onAccent() {
+        if (!modal.theme) return Qt.rgba(1, 1, 1, 1)
+        var accentLum = modal._luminance(modal.theme.accent)
+        var fgLum     = modal._luminance(modal.theme.foreground)
+        var bgLum     = modal._luminance(modal.theme.background)
+        return Math.abs(fgLum - accentLum) >= Math.abs(bgLum - accentLum)
+             ? modal.theme.foreground : modal.theme.background
+    }
 
-    // Working copy of the order, rebuilt from `order` every time the modal opens.
+    // Working copy, rebuilt from `order`/`hiddenTiles` every time the modal
+    // opens: shown tiles form a prefix, hidden tiles a suffix. `list.shownCount`
+    // is the authoritative split point.
     ListModel { id: tileModel }
 
     function _sync() {
         tileModel.clear()
-        for (var i = 0; i < modal.order.length; i++)
-            tileModel.append({ tileId: modal.order[i] })
+        var visible = [], hiddenIds = []
+        for (var i = 0; i < modal.order.length; i++) {
+            var id = modal.order[i]
+            if (modal.hiddenTiles.indexOf(id) !== -1) hiddenIds.push(id)
+            else visible.push(id)
+        }
+        for (i = 0; i < visible.length; i++) tileModel.append({ tileId: visible[i] })
+        for (i = 0; i < hiddenIds.length; i++) tileModel.append({ tileId: hiddenIds[i] })
+        list.shownCount = visible.length
     }
+    // A single drag can reorder, hide, or show a tile — always report both.
     function _commit() {
-        var arr = []
-        for (var i = 0; i < tileModel.count; i++) arr.push(tileModel.get(i).tileId)
-        modal.orderEdited(arr)
+        var order = [], hidden = []
+        for (var i = 0; i < tileModel.count; i++) {
+            var id = tileModel.get(i).tileId
+            order.push(id)
+            if (i >= list.shownCount) hidden.push(id)
+        }
+        modal.orderEdited(order)
+        modal.visibilityEdited(hidden)
     }
     onOpenedChanged: if (opened) _sync()
 
-    // ── Scrim ────────────────────────────────────────────────────────
-    Rectangle {
-        anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.45)
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: modal.close()
-        }
-    }
-
+    // No click-outside-to-close: the input mask (see `mask:` above) only
+    // covers the card, so clicks outside it go straight through to
+    // whatever's underneath instead of reaching this surface at all.
+    // Closing is Esc or the Done button.
     Item {
         anchors.fill: parent
         focus: modal.opened
@@ -71,25 +111,22 @@ PanelWindow {
     Rectangle {
         id: card
         anchors.centerIn: parent
-        width: 340
+        width: content.implicitWidth + 40
         height: content.implicitHeight + 40
-        radius: 18
+        // Same glass fill as StatCard.qml — low-alpha theme background so
+        // the blurred desktop shows through, tinted for light/dark themes.
+        radius: 16
         color: modal.theme
-               ? Qt.rgba(modal.theme.background.r, modal.theme.background.g, modal.theme.background.b, 0.92)
-               : Qt.rgba(0.1, 0.1, 0.12, 0.95)
+               ? Qt.rgba(modal.theme.background.r, modal.theme.background.g, modal.theme.background.b, 0.5)
+               : Qt.rgba(0.08, 0.08, 0.10, 0.5)
         border.width: 1
         border.color: modal._fg(0.12)
-
-        // Swallow clicks so they don't fall through to the scrim.
-        MouseArea { anchors.fill: parent; onClicked: {} }
+        Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         ColumnLayout {
             id: content
-            anchors {
-                top: parent.top; left: parent.left; right: parent.right
-                margins: 20
-            }
-            spacing: 14
+            anchors { top: parent.top; left: parent.left; margins: 20 }
+            spacing: 10
 
             ColumnLayout {
                 id: header
@@ -102,37 +139,80 @@ PanelWindow {
                     font.weight: Font.Medium
                 }
                 Text {
-                    text: "Drag to reorder · Esc to close"
+                    text: "Drag to reorder · drag across to hide/show · Esc to close"
                     color: modal._fg(0.45)
                     font.pixelSize: 11
                 }
             }
 
+            // ── Zone labels ─────────────────────────────────────────
+            Item {
+                Layout.preferredWidth: list.width
+                Layout.preferredHeight: 14
+                Text {
+                    x: 0; width: list.colWidth
+                    text: "SHOWN"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+                Text {
+                    x: list.hiddenX; width: list.colWidth
+                    text: "HIDDEN"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+            }
+
+            // ── Two fixed columns — width never changes, only height ──
             Item {
                 id: list
-                Layout.fillWidth: true
-                readonly property int rowHeight: 44
-                readonly property int rowSpacing: 8
+                Layout.preferredWidth: hiddenX + colWidth
+                Layout.preferredHeight: Math.max(1, Math.max(shownCount, hiddenCount)) * slot - rowSpacing
+
+                readonly property int rowHeight: 40
+                readonly property int rowSpacing: 6
                 readonly property int slot: rowHeight + rowSpacing
-                Layout.preferredHeight: tileModel.count * slot - rowSpacing
+                readonly property int colWidth: 200
+                readonly property int zoneGap: 24
+                readonly property int hiddenX: colWidth + zoneGap
+
+                property int shownCount: 0
+                readonly property int hiddenCount: tileModel.count - shownCount
+
+                Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+                // Divider between the shown and hidden columns.
+                Rectangle {
+                    x: list.colWidth + list.zoneGap / 2
+                    y: 0
+                    width: 1
+                    height: parent.height
+                    color: modal._fg(0.1)
+                }
 
                 Repeater {
                     model: tileModel
                     delegate: Rectangle {
                         id: chip
-                        width: list.width
+                        width: list.colWidth
                         height: list.rowHeight
                         radius: 10
                         z: dragArea.drag.active ? 10 : 1
 
                         property int visualIndex: index
                         property string myTileId: tileId
+                        property bool tileHidden: visualIndex >= list.shownCount
+                        property int myRow: tileHidden ? visualIndex - list.shownCount : visualIndex
 
-                        y: chip.visualIndex * list.slot
-                        Behavior on y {
-                            enabled: !dragArea.drag.active
-                            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                        }
+                        x: tileHidden ? list.hiddenX : 0
+                        y: myRow * list.slot
+                        Behavior on x { enabled: !dragArea.drag.active; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        Behavior on y { enabled: !dragArea.drag.active; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+                        opacity: chip.tileHidden ? 0.5 : 1.0
+                        Behavior on opacity { NumberAnimation { duration: 120 } }
 
                         color: dragArea.drag.active
                                ? modal._fg(0.14)
@@ -144,43 +224,66 @@ PanelWindow {
 
                         Text {
                             anchors {
-                                left: parent.left; leftMargin: 14
+                                left: parent.left; leftMargin: 12
+                                right: dragHandle.left; rightMargin: 8
                                 verticalCenter: parent.verticalCenter
                             }
                             text: modal.tileLabels[chip.myTileId] || chip.myTileId
                             color: modal._fg(0.9)
-                            font.pixelSize: 13
+                            font.pixelSize: 12
                             font.weight: Font.Medium
+                            elide: Text.ElideRight
                         }
 
                         Text {
+                            id: dragHandle
                             anchors {
-                                right: parent.right; rightMargin: 14
+                                right: parent.right; rightMargin: 10
                                 verticalCenter: parent.verticalCenter
                             }
                             text: "⠇⠇"
                             color: modal._fg(0.3)
-                            font.pixelSize: 14
+                            font.pixelSize: 13
                         }
 
                         MouseArea {
                             id: dragArea
                             anchors.fill: parent
                             drag.target: chip
-                            drag.axis: Drag.YAxis
-                            cursorShape: Qt.SizeVerCursor
+                            cursorShape: Qt.SizeAllCursor
 
                             onPositionChanged: {
                                 if (!drag.active) return
-                                var newIndex = Math.round(chip.y / list.slot)
-                                newIndex = Math.max(0, Math.min(tileModel.count - 1, newIndex))
-                                if (newIndex !== chip.visualIndex) {
-                                    tileModel.move(chip.visualIndex, newIndex, 1)
-                                    modal._commit()
+                                var willBeHidden = chip.x > (list.colWidth + list.zoneGap / 2)
+                                var row = Math.max(0, Math.round(chip.y / list.slot))
+                                var wasHidden = chip.tileHidden
+                                // Shown-tile count excluding the dragged tile itself —
+                                // the pivot both branches clamp against, regardless of
+                                // which column it's headed to. (Depends only on wasHidden:
+                                // removing an already-hidden tile never changes it.)
+                                var othersShown = list.shownCount - (wasHidden ? 0 : 1)
+                                var target
+                                if (willBeHidden) {
+                                    target = Math.max(othersShown, Math.min(tileModel.count - 1, othersShown + row))
+                                } else {
+                                    target = Math.max(0, Math.min(othersShown, row))
                                 }
+                                var moved = target !== chip.visualIndex
+                                var zoneChanged = wasHidden !== willBeHidden
+                                // Crossing the shown/hidden boundary can land a tile
+                                // back at the exact index it started at — the zone
+                                // still flipped even though nothing needs to move.
+                                if (!moved && !zoneChanged) return
+                                if (moved) tileModel.move(chip.visualIndex, target, 1)
+                                if (zoneChanged) {
+                                    if (wasHidden) list.shownCount += 1
+                                    else list.shownCount -= 1
+                                }
+                                modal._commit()
                             }
                             onReleased: {
-                                chip.y = Qt.binding(function() { return chip.visualIndex * list.slot })
+                                chip.x = Qt.binding(function() { return chip.tileHidden ? list.hiddenX : 0 })
+                                chip.y = Qt.binding(function() { return chip.myRow * list.slot })
                             }
                         }
                     }
@@ -189,7 +292,7 @@ PanelWindow {
 
             Item {
                 id: footer
-                Layout.fillWidth: true
+                Layout.preferredWidth: list.width
                 Layout.preferredHeight: doneButton.implicitHeight
 
                 Rectangle {
@@ -204,7 +307,7 @@ PanelWindow {
                         id: doneLabel
                         anchors.centerIn: parent
                         text: "Done"
-                        color: "#FFFFFF"
+                        color: modal._onAccent()
                         font.pixelSize: 12
                         font.weight: Font.Medium
                     }
