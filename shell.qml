@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.UPower
 
@@ -31,6 +32,68 @@ Scope {
 
     // Live Omarchy theme palette (accessible from both panels by id)
     Theme { id: theme }
+    // Unshadowed alias — inside a Component {} block (see the per-tile
+    // Components below), a bare `theme: theme` binding on an object with
+    // its own `theme` property resolves to itself (null) instead of this
+    // id, since the Component root shadows outer ids of the same name.
+    // Use `shell._theme` there instead.
+    readonly property Item _theme: theme
+
+    // ── Tile order — which stat tiles show, and in what order ──────
+    // Persisted to disk so a drag-reorder (via double-click → modal)
+    // survives restarts.
+    readonly property var defaultTileOrder: ["cpu", "memory", "gpu", "battery", "disk", "network", "ping"]
+    readonly property var tileLabels: ({
+        cpu:     "CPU",
+        memory:  "Memory",
+        gpu:     "GPU",
+        battery: "Battery",
+        disk:    "Disk",
+        network: "Network",
+        ping:    "Ping",
+    })
+    property var tileOrder: defaultTileOrder
+
+    // Reconciles the saved order against the known tile ids — drops
+    // anything unrecognized, appends any tile missing from a stale file.
+    function _reconcileTileOrder(raw) {
+        const known = shell.defaultTileOrder
+        const seen  = {}
+        const result = []
+        for (var i = 0; i < raw.length; i++) {
+            const id = raw[i]
+            if (known.indexOf(id) !== -1 && !seen[id]) {
+                result.push(id)
+                seen[id] = true
+            }
+        }
+        for (var j = 0; j < known.length; j++) {
+            if (!seen[known[j]]) result.push(known[j])
+        }
+        return result
+    }
+    function _applyLoadedTileOrder() {
+        shell.tileOrder = shell._reconcileTileOrder(tileOrderAdapter.order || [])
+    }
+    function saveTileOrder(newOrder) {
+        shell.tileOrder = newOrder
+        tileOrderAdapter.order = newOrder
+        tileOrderFile.writeAdapter()
+    }
+
+    FileView {
+        id: tileOrderFile
+        path: Quickshell.stateDir + "/tile-order.json"
+        watchChanges: true
+        printErrors: false
+        onLoaded:         shell._applyLoadedTileOrder()
+        onAdapterUpdated: shell._applyLoadedTileOrder()
+
+        JsonAdapter {
+            id: tileOrderAdapter
+            property var order: shell.defaultTileOrder
+        }
+    }
 
     // ── Helpers (at Scope level so all children can resolve them) ─
     // Theme foreground at a given alpha (defaults to fully opaque) — use
@@ -91,6 +154,15 @@ Scope {
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
 
+        // Double-click anywhere on the panel to reorder tiles. Sits behind
+        // the content (cards have no mouse handlers of their own, so clicks
+        // fall through to this).
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onDoubleClicked: reorderModal.open()
+        }
+
         // ── Two-column layout ─────────────────────────────────────────
         RowLayout {
             anchors {
@@ -105,14 +177,37 @@ Scope {
             //  COLUMN 1 — System Stats
             // ════════════════════════════════════════════════════════
             ColumnLayout {
+                id: tileColumn
                 Layout.preferredWidth: 296
                 Layout.fillHeight: true
                 spacing: 10
 
+                // Each tile is a Component, keyed by id, instantiated in
+                // whatever order shell.tileOrder says (see Repeater below).
+                property var tileMap: ({
+                    cpu:     cpuTile,
+                    memory:  memoryTile,
+                    gpu:     gpuTile,
+                    battery: batteryTile,
+                    disk:    diskTile,
+                    network: networkTile,
+                    ping:    pingTile,
+                })
+
+                Repeater {
+                    model: shell.tileOrder
+                    delegate: Loader {
+                        Layout.fillWidth: true
+                        sourceComponent: tileColumn.tileMap[modelData]
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+
                 // ── CPU ──────────────────────────────────────────────
-                StatCard {
+                Component { id: cpuTile; StatCard {
                     label: "CPU"
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     // Main row: ring + stats + sparkline
@@ -195,12 +290,12 @@ Scope {
                             }
                         }
                     }
-                }
+                } }
 
                 // ── MEMORY ───────────────────────────────────────────
-                StatCard {
+                Component { id: memoryTile; StatCard {
                     label: "Memory"
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     RowLayout {
@@ -236,12 +331,12 @@ Scope {
                             }
                         }
                     }
-                }
+                } }
 
                 // ── GPU ──────────────────────────────────────────────
-                StatCard {
+                Component { id: gpuTile; StatCard {
                     label: "GPU" + (metrics.gpuName ? " · " + metrics.gpuName : "")
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     RowLayout {
@@ -284,12 +379,12 @@ Scope {
                             }
                         }
                     }
-                }
+                } }
 
                 // ── BATTERY ──────────────────────────────────────────
-                StatCard {
+                Component { id: batteryTile; StatCard {
                     label: "Battery"
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
                     visible: UPower.displayDevice !== null
 
@@ -356,12 +451,12 @@ Scope {
                             }
                         }
                     }
-                }
+                } }
 
                 // ── DISK ─────────────────────────────────────────────
-                StatCard {
+                Component { id: diskTile; StatCard {
                     label: "Disk  /"
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     RowLayout {
@@ -391,12 +486,12 @@ Scope {
                             }
                         }
                     }
-                }
+                } }
 
                 // ── NETWORK ──────────────────────────────────────────
-                StatCard {
+                Component { id: networkTile; StatCard {
                     label: "Network"
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     ColumnLayout {
@@ -437,12 +532,12 @@ Scope {
                             lineColor2: theme.orange
                         }
                     }
-                }
+                } }
 
                 // ── PING ─────────────────────────────────────────────
-                StatCard {
+                Component { id: pingTile; StatCard {
                     label: "Ping · " + config.pingHost
-                    theme: theme
+                    theme: shell._theme
                     Layout.fillWidth: true
 
                     ColumnLayout {
@@ -479,14 +574,20 @@ Scope {
                                      : metrics.pingMs < 100 ? theme.orange : theme.red
                         }
                     }
-                }
-
-                Item { Layout.fillHeight: true }
+                } }
             }
         }
 
         // ── Left panel helpers ────────────────────────────────────────
 
+        TileReorderModal {
+            id: reorderModal
+            screen: shell._mainScreen
+            theme: theme
+            tileLabels: shell.tileLabels
+            order: shell.tileOrder
+            onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -507,6 +608,12 @@ Scope {
 
         // Height tracks card content
         implicitHeight: sysCard.implicitHeight + 40 + 8
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onDoubleClicked: reorderModal.open()
+        }
 
         Item {
             anchors {
