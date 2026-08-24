@@ -107,10 +107,18 @@ PanelWindow {
         Keys.onEscapePressed: modal.close()
     }
 
+    // Card position — starts centered; -1 means "not dragged yet", so it
+    // keeps re-centering (e.g. on screen resize) until the user grabs the
+    // header and moves it, after which it stays put for the rest of the
+    // session (drag.target below overwrites these via onReleased).
+    property real cardX: -1
+    property real cardY: -1
+
     // ── Card ─────────────────────────────────────────────────────────
     Rectangle {
         id: card
-        anchors.centerIn: parent
+        x: modal.cardX >= 0 ? modal.cardX : (parent.width - width) / 2
+        y: modal.cardY >= 0 ? modal.cardY : (parent.height - height) / 2
         width: content.implicitWidth + 40
         height: content.implicitHeight + 40
         // Same glass fill as StatCard.qml — low-alpha theme background so
@@ -122,6 +130,25 @@ PanelWindow {
         border.width: 1
         border.color: modal._fg(0.12)
         Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+        // Grab the header to move the modal anywhere on screen.
+        MouseArea {
+            x: 0; y: 0
+            width: card.width
+            height: 20 + header.height + 10
+            cursorShape: Qt.SizeAllCursor
+            drag.target: card
+            drag.minimumX: 0
+            drag.maximumX: Math.max(0, card.parent.width - card.width)
+            drag.minimumY: 0
+            drag.maximumY: Math.max(0, card.parent.height - card.height)
+            onReleased: {
+                modal.cardX = card.x
+                modal.cardY = card.y
+                card.x = Qt.binding(function() { return modal.cardX >= 0 ? modal.cardX : (card.parent.width - card.width) / 2 })
+                card.y = Qt.binding(function() { return modal.cardY >= 0 ? modal.cardY : (card.parent.height - card.height) / 2 })
+            }
+        }
 
         ColumnLayout {
             id: content
