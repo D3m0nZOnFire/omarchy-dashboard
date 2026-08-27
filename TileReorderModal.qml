@@ -201,9 +201,12 @@ PanelWindow {
             // ── Display picker ──────────────────────────────────────
             // Which output the panels attach to. "Automatic" clears the
             // override and falls back to Config.screenName / auto-detect.
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.preferredWidth: list.width
+            // Plain Column with fixed-width rows (like the tile chips below)
+            // rather than a nested Layout: a ColumnLayout here resolves its
+            // width from `list.width`, which isn't laid out yet on first
+            // pass, collapsing every row to zero width.
+            Column {
+                Layout.preferredWidth: list.hiddenX + list.colWidth
                 spacing: 6
 
                 Text {
@@ -218,9 +221,8 @@ PanelWindow {
                     delegate: Rectangle {
                         id: choiceRow
                         required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: list.width
-                        implicitHeight: 42
+                        width: list.hiddenX + list.colWidth
+                        height: 42
                         radius: 10
 
                         readonly property bool selected: modelData.name === modal.overrideScreenName
