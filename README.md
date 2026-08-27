@@ -29,9 +29,10 @@ theme live, no restart needed.
 
 ## Reordering & hiding tiles
 
-Double-click any tile to open the reorder panel. Drag tiles up/down to
+Double-click any tile to open the settings panel. Drag tiles up/down to
 reorder them, or drag one across into the Hidden column to hide it (drag it
-back to bring it back). Changes apply immediately and are remembered
+back to bring it back). The **DISPLAY** list at the top picks which monitor
+the dashboard lives on. Changes apply immediately and are remembered
 automatically — no config file to edit.
 
 ## Dependencies
@@ -105,9 +106,11 @@ tiles stay blank.
 QML edits hot-reload while `qs -c dashboard` is running — no restart needed.
 
 That's it — no config file needed. The panels attach to your laptop panel
-automatically (or the first screen, if there isn't one). [`Config.qml`](Config.qml)
-is only for edge cases: `screenName` to pin the panels to a specific output on
-a multi-monitor desktop, or `pingHost` if `1.1.1.1` doesn't work for you.
+automatically (or the first screen, if there isn't one). To put them on a
+different output, double-click the dashboard and pick it under **DISPLAY** in
+the settings panel — the choice is remembered. [`Config.qml`](Config.qml) is
+only for edge cases now: `screenName` as a fallback output when the picker is
+on "Automatic", or `pingHost` if `1.1.1.1` doesn't work for you.
 
 ## Troubleshooting
 

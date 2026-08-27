@@ -14,13 +14,16 @@ Scope {
     Config { id: config }
 
     // Shared screen reference — which output to put the panels on.
-    // 1. Explicit override (Config.screenName), if set.
-    // 2. Auto-detect: prefer a laptop panel (name starting with "eDP").
-    // 3. Fall back to the first screen.
+    // 1. Explicit override picked in the reorder/settings modal
+    //    (persisted in tile-order.json), if set.
+    // 2. Explicit override from Config.screenName, if set.
+    // 3. Auto-detect: prefer a laptop panel (name starting with "eDP").
+    // 4. Fall back to the first screen.
     readonly property var _mainScreen: {
-        if (config.screenName !== "") {
+        var wanted = shell.screenName !== "" ? shell.screenName : config.screenName
+        if (wanted !== "") {
             for (var i = 0; i < Quickshell.screens.length; i++) {
-                if (Quickshell.screens[i].name === config.screenName) return Quickshell.screens[i]
+                if (Quickshell.screens[i].name === wanted) return Quickshell.screens[i]
             }
         }
         for (var j = 0; j < Quickshell.screens.length; j++) {
@@ -57,6 +60,9 @@ Scope {
     })
     property var tileOrder: defaultTileOrder
     property var hiddenTiles: []
+    // Output the panels are pinned to, chosen in the modal's Display picker.
+    // "" means "no override" — fall back to Config.screenName / auto-detect.
+    property string screenName: ""
     // What the left panel actually renders — tileOrder minus hidden tiles.
     readonly property var visibleTileOrder: shell.tileOrder.filter(function(id) {
         return shell.hiddenTiles.indexOf(id) === -1
@@ -85,6 +91,7 @@ Scope {
         shell.hiddenTiles = (tileOrderAdapter.hidden || []).filter(function(id) {
             return shell.defaultTileOrder.indexOf(id) !== -1
         })
+        shell.screenName = tileOrderAdapter.screenName || ""
     }
     function saveTileOrder(newOrder) {
         shell.tileOrder = newOrder
@@ -94,6 +101,11 @@ Scope {
     function saveHiddenTiles(newHidden) {
         shell.hiddenTiles = newHidden
         tileOrderAdapter.hidden = newHidden
+        tileOrderFile.writeAdapter()
+    }
+    function saveScreenName(name) {
+        shell.screenName = name
+        tileOrderAdapter.screenName = name
         tileOrderFile.writeAdapter()
     }
 
@@ -109,6 +121,7 @@ Scope {
             id: tileOrderAdapter
             property var order: shell.defaultTileOrder
             property var hidden: []
+            property string screenName: ""
         }
     }
 
@@ -804,8 +817,12 @@ Scope {
             tileLabels: shell.tileLabels
             order: shell.tileOrder
             hiddenTiles: shell.hiddenTiles
+            screens: Quickshell.screens
+            overrideScreenName: shell.screenName
+            activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""
             onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
             onVisibilityEdited: newHidden => shell.saveHiddenTiles(newHidden)
+            onScreenEdited: name => shell.saveScreenName(name)
         }
     }
 

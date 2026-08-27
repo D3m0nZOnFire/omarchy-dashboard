@@ -18,8 +18,16 @@ PanelWindow {
     property var order: []
     property var hiddenTiles: []
 
+    // Display picker: list of Quickshell.screens, the user's persisted
+    // override ("" = Automatic), and the output actually in use right now.
+    property var screens: []
+    property string overrideScreenName: ""
+    property string activeScreenName: ""
+
     signal orderEdited(var newOrder)
     signal visibilityEdited(var newHidden)
+    // "" clears the override and returns to auto-detect.
+    signal screenEdited(string newScreenName)
 
     function open()  { opened = true }
     function close() { opened = false }
@@ -65,6 +73,24 @@ PanelWindow {
         var bgLum     = modal._luminance(modal.theme.background)
         return Math.abs(fgLum - accentLum) >= Math.abs(bgLum - accentLum)
              ? modal.theme.foreground : modal.theme.background
+    }
+
+    // Rows for the Display picker: "Automatic" first, then one per output.
+    readonly property var _screenChoices: {
+        var out = [{
+            name: "",
+            primary: "Automatic",
+            secondary: modal.overrideScreenName === "" && modal.activeScreenName !== ""
+                       ? "currently " + modal.activeScreenName
+                       : "laptop screen, else first output"
+        }]
+        for (var i = 0; i < modal.screens.length; i++) {
+            var s = modal.screens[i]
+            var sub = s.model || ""
+            if (s.width && s.height) sub += (sub ? "  ·  " : "") + s.width + "×" + s.height
+            out.push({ name: s.name, primary: s.name, secondary: sub })
+        }
+        return out
     }
 
     // Working copy, rebuilt from `order`/`hiddenTiles` every time the modal
@@ -160,7 +186,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 spacing: 2
                 Text {
-                    text: "Reorder Tiles"
+                    text: "Dashboard Settings"
                     color: modal._fg()
                     font.pixelSize: 16
                     font.weight: Font.Medium
@@ -169,6 +195,87 @@ PanelWindow {
                     text: "Drag to reorder · drag across to hide/show · Esc to close"
                     color: modal._fg(0.45)
                     font.pixelSize: 11
+                }
+            }
+
+            // ── Display picker ──────────────────────────────────────
+            // Which output the panels attach to. "Automatic" clears the
+            // override and falls back to Config.screenName / auto-detect.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: list.width
+                spacing: 6
+
+                Text {
+                    text: "DISPLAY"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+
+                Repeater {
+                    model: modal._screenChoices
+                    delegate: Rectangle {
+                        id: choiceRow
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: list.width
+                        implicitHeight: 42
+                        radius: 10
+
+                        readonly property bool selected: modelData.name === modal.overrideScreenName
+                        color: selected
+                               ? (modal.theme
+                                  ? Qt.rgba(modal.theme.accent.r, modal.theme.accent.g, modal.theme.accent.b, 0.16)
+                                  : modal._fg(0.14))
+                               : modal._fg(0.06)
+                        border.width: 1
+                        border.color: selected
+                                      ? (modal.theme ? modal.theme.accent : "#3478F6")
+                                      : modal._fg(0.1)
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 8
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: choiceRow.modelData.primary
+                                    color: modal._fg(0.9)
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: choiceRow.modelData.secondary !== ""
+                                    text: choiceRow.modelData.secondary
+                                    color: modal._fg(0.4)
+                                    font.pixelSize: 10
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            Text {
+                                visible: choiceRow.selected
+                                text: "✓"
+                                color: modal.theme ? modal.theme.accent : "#3478F6"
+                                font.pixelSize: 13
+                                font.weight: Font.Bold
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: modal.screenEdited(choiceRow.modelData.name)
+                        }
+                    }
                 }
             }
 
