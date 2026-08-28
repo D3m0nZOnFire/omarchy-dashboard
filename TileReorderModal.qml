@@ -19,7 +19,7 @@ PanelWindow {
     property var hiddenTiles: []
 
     // Display picker: list of Quickshell.screens, the user's persisted
-    // override ("" = Automatic), and the output actually in use right now.
+    // override ("" = none saved yet), and the output actually in use right now.
     property var screens: []
     property string overrideScreenName: ""
     property string activeScreenName: ""
@@ -75,15 +75,9 @@ PanelWindow {
              ? modal.theme.foreground : modal.theme.background
     }
 
-    // Rows for the Display picker: "Automatic" first, then one per output.
+    // Rows for the Display picker: one per output, no "Automatic" entry.
     readonly property var _screenChoices: {
-        var out = [{
-            name: "",
-            primary: "Automatic",
-            secondary: modal.overrideScreenName === "" && modal.activeScreenName !== ""
-                       ? "currently " + modal.activeScreenName
-                       : "laptop screen, else first output"
-        }]
+        var out = []
         for (var i = 0; i < modal.screens.length; i++) {
             var s = modal.screens[i]
             var sub = s.model || ""
@@ -199,8 +193,8 @@ PanelWindow {
             }
 
             // ── Display picker ──────────────────────────────────────
-            // Which output the panels attach to. "Automatic" clears the
-            // override and falls back to Config.screenName / auto-detect.
+            // Which output the panels attach to. With nothing saved, the
+            // panels use the first screen.
             // Plain Column with fixed-width rows (like the tile chips below)
             // rather than a nested Layout: a ColumnLayout here resolves its
             // width from `list.width`, which isn't laid out yet on first
@@ -225,7 +219,11 @@ PanelWindow {
                         height: 42
                         radius: 10
 
-                        readonly property bool selected: modelData.name === modal.overrideScreenName
+                        // When nothing is saved yet, highlight the output
+                        // actually in use (the first screen).
+                        readonly property bool selected: modal.overrideScreenName !== ""
+                                                         ? modelData.name === modal.overrideScreenName
+                                                         : modelData.name === modal.activeScreenName
                         color: selected
                                ? (modal.theme
                                   ? Qt.rgba(modal.theme.accent.r, modal.theme.accent.g, modal.theme.accent.b, 0.16)

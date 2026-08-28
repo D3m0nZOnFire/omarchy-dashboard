@@ -17,17 +17,13 @@ Scope {
     // 1. Explicit override picked in the reorder/settings modal
     //    (persisted in tile-order.json), if set.
     // 2. Explicit override from Config.screenName, if set.
-    // 3. Auto-detect: prefer a laptop panel (name starting with "eDP").
-    // 4. Fall back to the first screen.
+    // 3. Fall back to the first screen.
     readonly property var _mainScreen: {
         var wanted = shell.screenName !== "" ? shell.screenName : config.screenName
         if (wanted !== "") {
             for (var i = 0; i < Quickshell.screens.length; i++) {
                 if (Quickshell.screens[i].name === wanted) return Quickshell.screens[i]
             }
-        }
-        for (var j = 0; j < Quickshell.screens.length; j++) {
-            if (Quickshell.screens[j].name.startsWith("eDP")) return Quickshell.screens[j]
         }
         return Quickshell.screens[0]
     }
@@ -247,7 +243,7 @@ Scope {
 
                 // ── CPU ──────────────────────────────────────────────
                 Component { id: cpuTile; StatCard {
-                    label: "CPU"
+                    label: "CPU" + (metrics.cpuModel ? " · " + metrics.cpuModel : "")
                     theme: shell._theme
                     Layout.fillWidth: true
 

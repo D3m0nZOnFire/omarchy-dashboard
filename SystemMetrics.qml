@@ -10,6 +10,7 @@ Item {
     property var  cpuHistory:     []
     property real cpuPackageTemp: 0
     property real cpuMaxCoreTemp: 0
+    property string cpuModel:     ""
 
     // ── Memory ───────────────────────────────────
     property real ramUsedGB:  0
@@ -64,6 +65,17 @@ Item {
         stdout: StdioCollector {
             id: cpuOut
             onStreamFinished: root._parseCpuMem(cpuOut.text)
+        }
+    }
+
+    // CPU model name (read once)
+    Process {
+        id: cpuModelProc
+        command: ["sh", "-c", "grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2"]
+        running: true
+        stdout: StdioCollector {
+            id: cpuModelOut
+            onStreamFinished: root._parseCpuModel(cpuModelOut.text)
         }
     }
 
@@ -173,6 +185,19 @@ Item {
     }
 
     // ── Parsers ───────────────────────────────────
+
+    function _parseCpuModel(text) {
+        let s = (text || "").trim()
+        if (!s) return
+        // Strip marketing cruft: (R), (TM), clock suffix, "CPU"/"Processor" filler.
+        s = s.replace(/\((R|TM|tm|r)\)/g, "")
+             .replace(/\s*@.*$/, "")
+             .replace(/\b(CPU|Processor)\b/g, "")
+             .replace(/\d+-Core.*$/i, "")
+             .replace(/\s+/g, " ")
+             .trim()
+        root.cpuModel = s
+    }
 
     function _parseCpuMem(text) {
         const lines = text.trim().split("\n")
