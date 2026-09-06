@@ -50,7 +50,30 @@ automatically — no config file to edit.
 Run `sudo sensors-detect` once if you've never configured `sensors`, or temp
 tiles stay blank.
 
-## Setup
+## Install
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboard/main/install.sh)
+```
+
+One command: installs the dependencies, clones into
+`~/.config/quickshell/dashboard`, enables the frosted-glass blur in
+`looknfeel.lua`, and sets the dashboard to **auto-start** with Hyprland. It
+then launches it right away. Safe to re-run — that's also how you update.
+`~/.config/quickshell/dashboard/uninstall.sh` backs the config changes out.
+
+No config file to touch afterwards: the panels attach to your laptop screen
+automatically (or the first screen otherwise), and you pick a different output
+from the dashboard's **DISPLAY** picker (double-click the dashboard). QML edits
+hot-reload while it's running. [`Config.qml`](Config.qml) is only for edge
+cases: `screenName` as a fallback output when the picker is on "Automatic", or
+`pingHost` if `1.1.1.1` doesn't work for you.
+
+**NVIDIA GPU tile**: stats come from `nvidia-smi` (`SystemMetrics.qml`). On
+AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
+
+<details>
+<summary>Manual setup / vanilla Hyprland</summary>
 
 1. Clone into your Quickshell config dir (folder name must stay `dashboard`):
 
@@ -58,20 +81,21 @@ tiles stay blank.
    git clone https://github.com/D3m0nZOnFire/omarchy-dashboard ~/.config/quickshell/dashboard
    ```
 
-2. Run it in the foreground first to catch errors:
+2. Run it in the foreground first to catch errors, then detached:
 
    ```sh
-   qs -c dashboard
+   qs -c dashboard        # foreground
+   qs -c dashboard -d     # detached; or add to autostart
    ```
 
-   Once it looks right, run detached (`qs -c dashboard -d`) or add to
-   Hyprland's `exec-once`.
+   Autostart on Omarchy — add to `~/.config/hypr/autostart.lua`:
 
-3. **NVIDIA only**: GPU stats come from `nvidia-smi` (`SystemMetrics.qml`).
-   On AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
+   ```lua
+   o.launch_on_start("qs -c dashboard")
+   ```
 
-4. **Enable Hyprland background blur** — required. The cards are translucent
-   by design; without blur they're just washed-out gray boxes.
+3. **Enable Hyprland background blur** — required. The cards are translucent by
+   design; without blur they're just washed-out gray boxes.
 
    Omarchy (`~/.config/hypr/looknfeel.lua`):
 
@@ -100,17 +124,10 @@ tiles stay blank.
    layerrule = ignorealpha 0.2, quickshell:dashboard
    ```
 
-   Then `hyprctl reload`. (`ignore_alpha` skips blurring the fully
-   transparent gaps between cards — drop it if you want those blurred too.)
+   Then `hyprctl reload`. (`ignore_alpha` skips blurring the fully transparent
+   gaps between cards — drop it if you want those blurred too.)
 
-QML edits hot-reload while `qs -c dashboard` is running — no restart needed.
-
-That's it — no config file needed. The panels attach to your laptop panel
-automatically (or the first screen, if there isn't one). To put them on a
-different output, double-click the dashboard and pick it under **DISPLAY** in
-the settings panel — the choice is remembered. [`Config.qml`](Config.qml) is
-only for edge cases now: `screenName` as a fallback output when the picker is
-on "Automatic", or `pingHost` if `1.1.1.1` doesn't work for you.
+</details>
 
 ## Troubleshooting
 
@@ -120,8 +137,8 @@ on "Automatic", or `pingHost` if `1.1.1.1` doesn't work for you.
   `omarchy-theme-color --all` works.
 - **Wrong monitor**: set `screenName` in `Config.qml` to the output you want
   (see `hyprctl monitors` for names).
-- **Flat gray cards, no blur**: step 4 not done, or reload didn't take —
-  check `hyprctl getoption decoration:blur:enabled`.
+- **Flat gray cards, no blur**: blur isn't on, or `hyprctl reload` didn't take
+  — check `hyprctl getoption decoration:blur:enabled`.
 - **Media tile says "Nothing playing"**: it needs a running player that
   exposes MPRIS — most do (Spotify, browsers playing audio/video, VLC, mpv
   with the `mpris` plugin, etc.).
