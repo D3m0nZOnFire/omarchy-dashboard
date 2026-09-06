@@ -24,10 +24,17 @@ PanelWindow {
     property string overrideScreenName: ""
     property string activeScreenName: ""
 
+    // Glass-card opacity, as a percentage (0/25/50/75/100). See shell.qml.
+    property int blurPercent: 50
+    // Whether the glass cards draw a hairline outline.
+    property bool borderEnabled: false
+
     signal orderEdited(var newOrder)
     signal visibilityEdited(var newHidden)
     // "" clears the override and returns to auto-detect.
     signal screenEdited(string newScreenName)
+    signal blurEdited(int pct)
+    signal borderEdited(bool on)
 
     function open()  { opened = true }
     function close() { opened = false }
@@ -144,8 +151,10 @@ PanelWindow {
         // Same glass fill as StatCard.qml — low-alpha theme background so
         // the blurred desktop shows through, tinted for light/dark themes.
         radius: 16
+        // Follows the BLUR setting so it previews toward the opaque end, but
+        // never drops below 0.5 — this is the surface you edit that setting from.
         color: modal.theme
-               ? Qt.rgba(modal.theme.background.r, modal.theme.background.g, modal.theme.background.b, 0.5)
+               ? Qt.rgba(modal.theme.background.r, modal.theme.background.g, modal.theme.background.b, Math.max(0.5, modal.theme.glassAlpha))
                : Qt.rgba(0.08, 0.08, 0.10, 0.5)
         border.width: 1
         border.color: modal._fg(0.12)
@@ -275,6 +284,113 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: modal.screenEdited(choiceRow.modelData.name)
                         }
+                    }
+                }
+            }
+
+            // ── Blur picker ─────────────────────────────────────────
+            // Opacity of every glass card, from transparent to opaque —
+            // a segmented row of buttons that splits the width evenly.
+            Column {
+                Layout.preferredWidth: list.hiddenX + list.colWidth
+                spacing: 6
+
+                Text {
+                    text: "BLUR"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+
+                RowLayout {
+                    width: parent.width
+                    spacing: 6
+
+                    Repeater {
+                        model: [
+                            { pct: 0,   name: "Transparent" },
+                            { pct: 25,  name: "Light" },
+                            { pct: 50,  name: "Medium" },
+                            { pct: 75,  name: "Frosted" },
+                            { pct: 100, name: "Opaque" },
+                        ]
+                        delegate: Rectangle {
+                            id: blurBtn
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            implicitHeight: 34
+                            radius: 8
+
+                            readonly property bool selected: modelData.pct === modal.blurPercent
+                            color: selected
+                                   ? (modal.theme
+                                      ? Qt.rgba(modal.theme.accent.r, modal.theme.accent.g, modal.theme.accent.b, 0.16)
+                                      : modal._fg(0.14))
+                                   : modal._fg(0.05)
+                            border.width: 1
+                            border.color: selected
+                                          ? (modal.theme ? modal.theme.accent : "#3478F6")
+                                          : modal._fg(0.12)
+
+                            Text {
+                                anchors.centerIn: parent
+                                width: parent.width - 8
+                                horizontalAlignment: Text.AlignHCenter
+                                text: blurBtn.modelData.name
+                                color: blurBtn.selected ? modal._fg(0.95) : modal._fg(0.6)
+                                font.pixelSize: 11
+                                font.weight: blurBtn.selected ? Font.Medium : Font.Normal
+                                elide: Text.ElideRight
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: modal.blurEdited(blurBtn.modelData.pct)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Border toggle ──────────────────────────────────────
+            // Hairline outline around every glass card. Just a caption
+            // and the switch, left-aligned.
+            Column {
+                spacing: 6
+
+                Text {
+                    text: "BORDER"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+
+                Rectangle {
+                    id: borderSwitch
+                    width: 40
+                    height: 22
+                    radius: 11
+                    color: modal.borderEnabled
+                           ? (modal.theme ? modal.theme.accent : "#3478F6")
+                           : modal._fg(0.15)
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    Rectangle {
+                        width: 18
+                        height: 18
+                        radius: 9
+                        y: 2
+                        x: modal.borderEnabled ? parent.width - width - 2 : 2
+                        color: "#FFFFFF"
+                        Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: modal.borderEdited(!modal.borderEnabled)
                     }
                 }
             }

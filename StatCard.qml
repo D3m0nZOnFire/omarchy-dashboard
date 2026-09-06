@@ -20,12 +20,13 @@ Item {
         anchors.fill: parent
         radius: 16
         color: root.theme
-               ? Qt.rgba(root.theme.background.r, root.theme.background.g, root.theme.background.b, 0.5)
+               ? Qt.rgba(root.theme.background.r, root.theme.background.g, root.theme.background.b, root.theme.glassAlpha)
                : Qt.rgba(0.08, 0.08, 0.10, 0.5)
+        // Optional hairline outline — toggled from the settings modal.
+        border.width: (root.theme && root.theme.glassBorder) ? 1 : 0
         border.color: root.theme
                ? Qt.rgba(root.theme.foreground.r, root.theme.foreground.g, root.theme.foreground.b, 0.12)
                : Qt.rgba(1, 1, 1, 0.10)
-        border.width: 1
     }
 
     // Card label

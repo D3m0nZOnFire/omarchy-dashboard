@@ -31,8 +31,10 @@ Scope {
     // Shared metrics (accessible from both panels by id)
     SystemMetrics { id: metrics; pingHost: config.pingHost }
 
-    // Live Omarchy theme palette (accessible from both panels by id)
-    Theme { id: theme }
+    // Live Omarchy theme palette (accessible from both panels by id).
+    // glassAlpha / glassBorder carry the persisted BLUR and BORDER
+    // settings to every StatCard without per-tile plumbing.
+    Theme { id: theme; glassAlpha: shell.blurAlpha; glassBorder: shell.tileBorder }
     // Unshadowed alias — inside a Component {} block (see the per-tile
     // Components below), a bare `theme: theme` binding on an object with
     // its own `theme` property resolves to itself (null) instead of this
@@ -59,6 +61,23 @@ Scope {
     // Output the panels are pinned to, chosen in the modal's Display picker.
     // "" means "no override" — fall back to Config.screenName / auto-detect.
     property string screenName: ""
+    // Glass-card opacity, chosen in the modal's BLUR picker. Stored as a
+    // percentage (one of 0/25/50/75/100); the on-screen alpha is derived
+    // via _blurAlphaFor. 50 = 0.5 = the previous hardcoded default.
+    property int blurPercent: 50
+    readonly property real blurAlpha: shell._blurAlphaFor(shell.blurPercent)
+    function _blurAlphaFor(pct) {
+        switch (pct) {
+            case 0:   return 0.0    // fully transparent (below Hyprland ignore_alpha=0.2, so no blur either)
+            case 25:  return 0.3
+            case 75:  return 0.75
+            case 100: return 1.0
+            default:  return 0.5    // Medium / unknown
+        }
+    }
+    // Whether the glass cards draw a hairline outline. Chosen in the
+    // modal's BORDER toggle; off by default.
+    property bool tileBorder: false
     // What the left panel actually renders — tileOrder minus hidden tiles.
     readonly property var visibleTileOrder: shell.tileOrder.filter(function(id) {
         return shell.hiddenTiles.indexOf(id) === -1
@@ -88,6 +107,9 @@ Scope {
             return shell.defaultTileOrder.indexOf(id) !== -1
         })
         shell.screenName = tileOrderAdapter.screenName || ""
+        shell.blurPercent = [0, 25, 50, 75, 100].indexOf(tileOrderAdapter.blur) !== -1
+                            ? tileOrderAdapter.blur : 50
+        shell.tileBorder = tileOrderAdapter.border === true
     }
     function saveTileOrder(newOrder) {
         shell.tileOrder = newOrder
@@ -104,6 +126,16 @@ Scope {
         tileOrderAdapter.screenName = name
         tileOrderFile.writeAdapter()
     }
+    function saveBlurPercent(pct) {
+        shell.blurPercent = pct
+        tileOrderAdapter.blur = pct
+        tileOrderFile.writeAdapter()
+    }
+    function saveTileBorder(on) {
+        shell.tileBorder = on
+        tileOrderAdapter.border = on
+        tileOrderFile.writeAdapter()
+    }
 
     FileView {
         id: tileOrderFile
@@ -118,6 +150,8 @@ Scope {
             property var order: shell.defaultTileOrder
             property var hidden: []
             property string screenName: ""
+            property int blur: 50
+            property bool border: false
         }
     }
 
@@ -816,9 +850,13 @@ Scope {
             screens: Quickshell.screens
             overrideScreenName: shell.screenName
             activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""
+            blurPercent: shell.blurPercent
+            borderEnabled: shell.tileBorder
             onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
             onVisibilityEdited: newHidden => shell.saveHiddenTiles(newHidden)
             onScreenEdited: name => shell.saveScreenName(name)
+            onBlurEdited: pct => shell.saveBlurPercent(pct)
+            onBorderEdited: on => shell.saveTileBorder(on)
         }
     }
 
