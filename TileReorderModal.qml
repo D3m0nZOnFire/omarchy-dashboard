@@ -28,6 +28,8 @@ PanelWindow {
     property int blurPercent: 50
     // Whether the glass cards draw a hairline outline.
     property bool borderEnabled: false
+    // Whether the right-hand System Info panel is shown.
+    property bool rightPanelEnabled: true
 
     signal orderEdited(var newOrder)
     signal visibilityEdited(var newHidden)
@@ -35,6 +37,7 @@ PanelWindow {
     signal screenEdited(string newScreenName)
     signal blurEdited(int pct)
     signal borderEdited(bool on)
+    signal rightPanelEdited(bool on)
 
     function open()  { opened = true }
     function close() { opened = false }
@@ -354,43 +357,61 @@ PanelWindow {
                 }
             }
 
-            // ── Border toggle ──────────────────────────────────────
-            // Hairline outline around every glass card. Just a caption
-            // and the switch, left-aligned.
-            Column {
-                spacing: 6
+            // ── Toggles ────────────────────────────────────────────
+            // BORDER: hairline outline around every glass card.
+            // RIGHT PANEL: the System Info panel on the right edge.
+            // Each is a caption above a switch; sit side by side.
+            RowLayout {
+                spacing: 28
 
-                Text {
-                    text: "BORDER"
-                    color: modal._fg(0.35)
-                    font.pixelSize: 9
-                    font.letterSpacing: 1
-                }
+                Repeater {
+                    model: [
+                        { key: "border", label: "BORDER" },
+                        { key: "rightPanel", label: "RIGHT PANEL" },
+                    ]
+                    delegate: Column {
+                        id: toggle
+                        required property var modelData
+                        readonly property bool on_: modelData.key === "border"
+                                                    ? modal.borderEnabled : modal.rightPanelEnabled
+                        function _toggle() {
+                            if (modelData.key === "border") modal.borderEdited(!modal.borderEnabled)
+                            else modal.rightPanelEdited(!modal.rightPanelEnabled)
+                        }
+                        spacing: 6
 
-                Rectangle {
-                    id: borderSwitch
-                    width: 40
-                    height: 22
-                    radius: 11
-                    color: modal.borderEnabled
-                           ? (modal.theme ? modal.theme.accent : "#3478F6")
-                           : modal._fg(0.15)
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                        Text {
+                            text: toggle.modelData.label
+                            color: modal._fg(0.35)
+                            font.pixelSize: 9
+                            font.letterSpacing: 1
+                        }
 
-                    Rectangle {
-                        width: 18
-                        height: 18
-                        radius: 9
-                        y: 2
-                        x: modal.borderEnabled ? parent.width - width - 2 : 2
-                        color: "#FFFFFF"
-                        Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    }
+                        Rectangle {
+                            width: 40
+                            height: 22
+                            radius: 11
+                            color: toggle.on_
+                                   ? (modal.theme ? modal.theme.accent : "#3478F6")
+                                   : modal._fg(0.15)
+                            Behavior on color { ColorAnimation { duration: 120 } }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: modal.borderEdited(!modal.borderEnabled)
+                            Rectangle {
+                                width: 18
+                                height: 18
+                                radius: 9
+                                y: 2
+                                x: toggle.on_ ? parent.width - width - 2 : 2
+                                color: "#FFFFFF"
+                                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: toggle._toggle()
+                            }
+                        }
                     }
                 }
             }

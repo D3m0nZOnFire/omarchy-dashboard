@@ -78,6 +78,7 @@ Scope {
     // Whether the glass cards draw a hairline outline. Chosen in the
     // modal's BORDER toggle; off by default.
     property bool tileBorder: false
+    property bool showRightPanel: true
     // What the left panel actually renders — tileOrder minus hidden tiles.
     readonly property var visibleTileOrder: shell.tileOrder.filter(function(id) {
         return shell.hiddenTiles.indexOf(id) === -1
@@ -110,6 +111,7 @@ Scope {
         shell.blurPercent = [0, 25, 50, 75, 100].indexOf(tileOrderAdapter.blur) !== -1
                             ? tileOrderAdapter.blur : 50
         shell.tileBorder = tileOrderAdapter.border === true
+        shell.showRightPanel = tileOrderAdapter.rightPanel !== false
     }
     function saveTileOrder(newOrder) {
         shell.tileOrder = newOrder
@@ -136,6 +138,11 @@ Scope {
         tileOrderAdapter.border = on
         tileOrderFile.writeAdapter()
     }
+    function saveShowRightPanel(on) {
+        shell.showRightPanel = on
+        tileOrderAdapter.rightPanel = on
+        tileOrderFile.writeAdapter()
+    }
 
     FileView {
         id: tileOrderFile
@@ -152,6 +159,7 @@ Scope {
             property string screenName: ""
             property int blur: 50
             property bool border: false
+            property bool rightPanel: true
         }
     }
 
@@ -852,11 +860,13 @@ Scope {
             activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""
             blurPercent: shell.blurPercent
             borderEnabled: shell.tileBorder
+            rightPanelEnabled: shell.showRightPanel
             onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
             onVisibilityEdited: newHidden => shell.saveHiddenTiles(newHidden)
             onScreenEdited: name => shell.saveScreenName(name)
             onBlurEdited: pct => shell.saveBlurPercent(pct)
             onBorderEdited: on => shell.saveTileBorder(on)
+            onRightPanelEdited: on => shell.saveShowRightPanel(on)
         }
     }
 
@@ -866,6 +876,7 @@ Scope {
     PanelWindow {
         id: rightPanel
 
+        visible:         shell.showRightPanel
         screen:          shell._mainScreen
         anchors {        top: true; right: true }
         implicitWidth:   300
@@ -885,6 +896,15 @@ Scope {
                 right: parent.right; rightMargin: 8
             }
             width: 284   // 300 - 8 - 8
+            height: sysCard.implicitHeight
+
+            // Double-click the card to open the settings modal, same as
+            // the left tiles. Sits behind the card's own content.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                onDoubleClicked: reorderModal.open()
+            }
 
             StatCard {
                 id: sysCard
