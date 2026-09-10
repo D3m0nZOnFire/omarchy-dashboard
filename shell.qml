@@ -272,6 +272,145 @@ Scope {
     }
     Process { id: weatherLocProc; running: false }
 
+    // ── Updater ─────────────────────────────────────────────────────
+    // Backs the settings modal's About page. It tracks tagged releases on
+    // GitHub (vX.Y.Z), not raw `main`. The check is read-only git run from
+    // here; the update itself - fast-forward `main` to the newest release
+    // tag, then a full install.sh re-run (deps, autostart, blur) - runs in a
+    // detached terminal via omarchy-launch-terminal, so it survives the
+    // hot-reload the new files trigger. install.sh needs a password for the
+    // package installs. `-c core.hooksPath=/dev/null` keeps a tampered
+    // .git/hooks from running during any of it; `--ff-only` blocks history
+    // rewrites and rollbacks. See RELEASING.md for how tags are published.
+    readonly property string _repoDir:   Quickshell.env("HOME") + "/.config/quickshell/dashboard"
+    readonly property string _repoHttps: "https://github.com/D3m0nZOnFire/omarchy-dashboard.git"
+    readonly property string _repoWeb:   "https://github.com/D3m0nZOnFire/omarchy-dashboard"
+    // Shared by the check and the update: newest vX.Y.Z tag, newest first.
+    readonly property string _tagPick:
+        "git tag -l --sort=-v:refname | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n1"
+
+    property string verName: ""      // installed release, e.g. "v1.0.0" (git describe)
+    property string verSubject: ""
+    property string verDate: ""
+
+    function _readVersion() { versionProc.running = true }
+    function checkForUpdate() {
+        if (reorderModal.updateState === "checking" || reorderModal.updateState === "launching") return
+        reorderModal.updateError = ""
+        reorderModal.updateState = "checking"
+        checkProc.running = true
+    }
+    function runUpdate() {
+        if (reorderModal.updateState === "checking" || reorderModal.updateState === "launching") return
+        reorderModal.updateError = ""
+        reorderModal.updateState = "checking"
+        statusProc.running = true
+    }
+    function _lines(s) {
+        return String(s || "").split("\n").filter(function(l) { return l.trim() !== "" })
+    }
+
+    // Installed version line: `git describe` + the tip commit's subject / age.
+    Process {
+        id: versionProc
+        running: false
+        command: ["bash", "-c",
+            "d=$1; git -C \"$d\" describe --tags --always 2>/dev/null || echo '?'; "
+            + "git -C \"$d\" log -1 --format=%s%x1f%cr",
+            "_", shell._repoDir]
+        stdout: StdioCollector {
+            id: versionOut
+            onStreamFinished: {
+                var ls = shell._lines(versionOut.text)
+                shell.verName = ls[0] || "?"
+                var meta = String(ls[1] || "").split("\x1f")
+                shell.verSubject = meta[0] || ""
+                shell.verDate    = meta[1] || ""
+            }
+        }
+    }
+
+    // ── check: fetch tags, report installed vs newest release + changelog ──
+    // Output is line-prefixed so a partial read can't be misparsed:
+    //   err-network        fetch failed
+    //   cur <tag|>         nearest release tag reachable from HEAD
+    //   new <tag|>         newest vX.Y.Z tag on the remote
+    //   log <subject>      one per commit between cur and new
+    Process {
+        id: checkProc
+        running: false
+        command: ["bash", "-c",
+            "d=$1; url=$2; "
+            + "git -C \"$d\" -c core.hooksPath=/dev/null fetch --tags --quiet \"$url\" || { echo err-network; exit 0; }; "
+            + "cur=$(git -C \"$d\" describe --tags --abbrev=0 2>/dev/null || true); "
+            + "new=$(cd \"$d\" && " + shell._tagPick + "); "
+            + "echo \"cur $cur\"; echo \"new $new\"; "
+            + "if [ -n \"$new\" ] && [ \"$cur\" != \"$new\" ]; then "
+            + "git -C \"$d\" log --format='log %s' \"${cur:+$cur..}$new\"; fi",
+            "_", shell._repoDir, shell._repoHttps]
+        stdout: StdioCollector {
+            id: checkOut
+            onStreamFinished: {
+                var cur = "", neu = "", log = [], net = true
+                shell._lines(checkOut.text).forEach(function(l) {
+                    if (l === "err-network") net = false
+                    else if (l.indexOf("cur ") === 0) cur = l.slice(4).trim()
+                    else if (l.indexOf("new ") === 0) neu = l.slice(4).trim()
+                    else if (l.indexOf("log ") === 0) log.push(l.slice(4))
+                })
+                if (!net) {
+                    reorderModal.updateError = "Couldn't reach GitHub. Check your connection and retry."
+                    reorderModal.updateState = "error"
+                    return
+                }
+                reorderModal.latestVersion = neu
+                reorderModal.incomingLog = log
+                reorderModal.commitsBehind = log.length
+                reorderModal.updateState = (neu !== "" && neu !== cur) ? "available" : "uptodate"
+            }
+        }
+    }
+
+    // ── run flow: dirty guard, then hand off to a detached terminal ──
+    Process {
+        id: statusProc
+        running: false
+        command: ["git", "-c", "core.hooksPath=/dev/null",
+                  "-C", shell._repoDir, "status", "--porcelain", "--untracked-files=no"]
+        stdout: StdioCollector {
+            id: statusOut
+            onStreamFinished: {
+                var lines = shell._lines(statusOut.text)
+                if (lines.length > 0) {
+                    reorderModal.dirtyFiles = lines.map(function(l) { return l.slice(3) })
+                    reorderModal.updateState = "dirty"
+                    return
+                }
+                reorderModal.updateState = "launching"
+                termProc.running = true
+            }
+        }
+    }
+    // The whole update, in a terminal that outlives this shell's hot-reload:
+    // fetch tags over HTTPS, fast-forward `main` to the newest release tag,
+    // then install.sh for deps + autostart + blur. The prompt stays open on
+    // a `read` so the result is visible.
+    Process {
+        id: termProc
+        running: false
+        command: ["omarchy-launch-terminal", "bash", "-c",
+            "d=$1; url=$2; cd \"$d\" || exit 1; "
+            + "git -c core.hooksPath=/dev/null fetch --tags --quiet \"$url\" && "
+            + "tag=$(" + shell._tagPick + ") && [ -n \"$tag\" ] && "
+            + "echo \"Updating to $tag\" && "
+            + "git -c core.hooksPath=/dev/null merge --ff-only \"$tag\" && "
+            + "./install.sh; "
+            + "ec=$?; echo; read -rp \"Update finished (exit $ec) - press Enter to close \" _",
+            "_", shell._repoDir, shell._repoHttps]
+    }
+
+    Component.onCompleted: shell._readVersion()
+
     // ── Helpers (at Scope level so all children can resolve them) ─
     // Theme foreground at a given alpha (defaults to fully opaque) - use
     // this instead of hardcoding white/rgba(1,1,1,x) so text follows the
@@ -1369,6 +1508,10 @@ Scope {
         workMinutes: shell.focusWorkMinutes
         breakMinutes: shell.focusBreakMinutes
         focusSoundEnabled: shell.focusSound
+        versionName: shell.verName
+        versionSubject: shell.verSubject
+        versionDate: shell.verDate
+        repoWeb: shell._repoWeb
         onPlacementEdited: (o, p) => shell.savePlacement(o, p)
         onScreenEdited: name => shell.saveScreenName(name)
         onBlurEdited: pct => shell.saveBlurPercent(pct)
@@ -1376,6 +1519,8 @@ Scope {
         onWeatherLocationEdited: name => shell.setWeatherLocation(name)
         onFocusTimersEdited: (work, brk) => shell.saveFocusTimers(work, brk)
         onFocusSoundEdited: on => shell.saveFocusSound(on)
+        onUpdateCheckRequested: shell.checkForUpdate()
+        onUpdateRunRequested: shell.runUpdate()
     }
 
     // ════════════════════════════════════════════════════════════

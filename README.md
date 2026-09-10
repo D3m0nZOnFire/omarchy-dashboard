@@ -49,6 +49,12 @@ category rail on the left:
 - **Weather** - the city for the Weather and Sun tiles.
 - **Focus Timer** - the work / break lengths (the cog on the Focus tile
   jumps straight here).
+- **About** - the installed version and an **Update now** button: it updates
+  to the newest tagged release, installs any new dependencies and re-syncs the
+  Hyprland blur / autostart config (a terminal opens for the steps that need
+  your password). This is the everyday way to update; re-running the install
+  script does the same thing. It refuses if you have local edits to tracked
+  files.
 
 Everything is remembered automatically - no config file to edit.
 
@@ -83,7 +89,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboa
 One command: installs the dependencies, clones into
 `~/.config/quickshell/dashboard`, enables the frosted-glass blur in
 `looknfeel.lua`, and sets the dashboard to **auto-start** with Hyprland. It
-then launches it right away. Safe to re-run - that's also how you update.
+then launches it right away. It checks out the newest tagged release, not
+bleeding `main`.
+
+**Updating:** Dashboard Settings -> **About** -> *Update now* (or just re-run
+the install command). Both move you to the latest release.
 `~/.config/quickshell/dashboard/uninstall.sh` backs the config changes out.
 
 No config file to touch afterwards: the panels attach to your laptop screen
@@ -99,11 +109,17 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
 <details>
 <summary>Manual setup / vanilla Hyprland</summary>
 
-1. Clone into your Quickshell config dir (folder name must stay `dashboard`):
+1. Clone into your Quickshell config dir (folder name must stay `dashboard`)
+   and check out the latest release:
 
    ```sh
    git clone https://github.com/D3m0nZOnFire/omarchy-dashboard ~/.config/quickshell/dashboard
+   cd ~/.config/quickshell/dashboard
+   git checkout -B main "$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)"
    ```
+
+   To update later: `git fetch --tags` then re-run that `git checkout` line
+   (or use Dashboard Settings -> About).
 
 2. Run it in the foreground first to catch errors, then detached:
 

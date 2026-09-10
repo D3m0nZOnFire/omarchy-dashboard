@@ -26,6 +26,11 @@ PanelWindow {
     property int workMinutes: 25
     property int breakMinutes: 5
     property bool focusSoundEnabled: true
+    property string versionName: ""      // installed release, e.g. "v1.0.0"
+    property string versionSubject: ""
+    property string versionDate: ""
+    property string repoWeb: ""
+    property string latestVersion: ""    // newest release tag on GitHub, when an update is available
 
     // ── Outputs ──
     signal placementEdited(var newOrder, var newPlacement)
@@ -35,9 +40,19 @@ PanelWindow {
     signal weatherLocationEdited(string name)
     signal focusTimersEdited(int work, int brk)
     signal focusSoundEdited(bool on)
+    signal updateCheckRequested()
+    signal updateRunRequested()
 
     property string page: "layout"
     property bool opened: false
+
+    // About-page update flow. `updateState` is driven by shell.qml:
+    //   idle | checking | uptodate | available | dirty | error | launching
+    property string updateState: "idle"
+    property int commitsBehind: 0
+    property var incomingLog: []      // subjects of the commits we're behind
+    property var dirtyFiles: []       // tracked files with local edits
+    property string updateError: ""
 
     function open(p) {
         if (p !== undefined && p !== "") modal.page = p
@@ -64,6 +79,7 @@ PanelWindow {
         { key: "display",    label: "Display" },
         { key: "weather",    label: "Weather" },
         { key: "focus",      label: "Focus Timer" },
+        { key: "about",      label: "About" },
     ]
 
     // One row per output for the Display page.
@@ -186,7 +202,15 @@ PanelWindow {
         modal.placementEdited(newOrder, pl)
     }
 
-    onOpenedChanged: if (opened) _syncBoard()
+    onOpenedChanged: {
+        if (opened) {
+            _syncBoard()
+            if (page === "about" && updateState === "idle") updateCheckRequested()
+        } else {
+            updateState = "idle"   // forget a stale result so reopening re-checks
+        }
+    }
+    onPageChanged: if (opened && page === "about" && updateState === "idle") updateCheckRequested()
     onOrderChanged: _syncBoard()
     onPlacementChanged: _syncBoard()
     Component.onCompleted: _syncBoard()
@@ -841,6 +865,190 @@ PanelWindow {
                         Text { text: "Chime when a period ends"; color: modal._fg(0.9); font.pixelSize: 12 }
                         Text { text: "A short sound alongside the desktop notification."; color: modal._fg(0.35); font.pixelSize: 10 }
                     }
+                }
+            }
+
+            // ===== ABOUT (version + updater) ========================
+            Column {
+                anchors.fill: parent
+                visible: modal.page === "about"
+                spacing: 20
+
+                Column {
+                    width: parent.width
+                    spacing: 4
+                    Text {
+                        text: "VERSION"
+                        color: modal._fg(0.35)
+                        font.pixelSize: 9; font.letterSpacing: 1
+                    }
+                    Text {
+                        text: modal.versionName === "" ? "…" : modal.versionName
+                        color: modal._fg(0.95)
+                        font.pixelSize: 15
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        width: parent.width
+                        visible: modal.versionSubject !== ""
+                        text: modal.versionSubject
+                              + (modal.versionDate ? "  ·  " + modal.versionDate : "")
+                        color: modal._fg(0.4)
+                        font.pixelSize: 10
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Rectangle { width: parent.width; height: 1; color: modal._fg(0.1) }
+
+                Column {
+                    width: parent.width
+                    spacing: 10
+                    Text {
+                        text: "UPDATES"
+                        color: modal._fg(0.35)
+                        font.pixelSize: 9; font.letterSpacing: 1
+                    }
+
+                    Row {
+                        spacing: 10
+
+                        // "Check for updates" - accent outline pill.
+                        Rectangle {
+                            width: checkLabel.implicitWidth + 26
+                            height: 30
+                            radius: modal.theme ? modal.theme.radiusS + 1 : 9
+                            color: checkArea.containsMouse ? C.accent(modal.theme, 0.12) : "transparent"
+                            border.width: 1
+                            border.color: C.accent(modal.theme, 0.55)
+                            Text {
+                                id: checkLabel
+                                anchors.centerIn: parent
+                                text: modal.updateState === "checking" ? "Checking…" : "Check for updates"
+                                color: modal.theme ? modal.theme.accent : "#3478F6"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                            }
+                            MouseArea {
+                                id: checkArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: modal.updateState !== "checking" && modal.updateState !== "launching"
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: modal.updateCheckRequested()
+                            }
+                        }
+
+                        // "Update now" - filled accent, emphasised when an
+                        // update is waiting.
+                        Rectangle {
+                            width: updLabel.implicitWidth + 30
+                            height: 30
+                            radius: modal.theme ? modal.theme.radiusS + 1 : 9
+                            opacity: (modal.updateState === "launching" || modal.updateState === "checking") ? 0.5 : 1
+                            color: modal.updateState === "available"
+                                   ? (modal.theme ? modal.theme.accent : "#3478F6")
+                                   : C.accent(modal.theme, 0.16)
+                            Text {
+                                id: updLabel
+                                anchors.centerIn: parent
+                                text: "Update now"
+                                color: modal.updateState === "available"
+                                       ? C.onAccent(modal.theme)
+                                       : (modal.theme ? modal.theme.accent : "#3478F6")
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: modal.updateState !== "launching" && modal.updateState !== "checking"
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: modal.updateRunRequested()
+                            }
+                        }
+                    }
+
+                    // Status line - varies with updateState.
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                        visible: text !== ""
+                        color: modal.updateState === "error" || modal.updateState === "dirty"
+                               ? Qt.rgba(0.93, 0.42, 0.42, 1)
+                               : (modal.updateState === "available" ? modal._fg(0.9) : modal._fg(0.5))
+                        text: {
+                            switch (modal.updateState) {
+                            case "checking":  return "Checking GitHub…"
+                            case "uptodate":  return "You're on the latest release."
+                            case "available": return (modal.latestVersion || "A new release")
+                                                     + " is available"
+                                                     + (modal.commitsBehind > 0
+                                                        ? " (" + modal.commitsBehind
+                                                          + (modal.commitsBehind === 1 ? " change)." : " changes).")
+                                                        : ".")
+                            case "dirty":     return "Local changes block the update. Commit or discard them, then retry:"
+                            case "error":     return modal.updateError
+                            case "launching": return "Updating in a terminal - the dashboard reloads itself when it's done."
+                            default:          return ""
+                            }
+                        }
+                    }
+
+                    // Incoming commit subjects (when behind) or dirty file
+                    // list (when blocked).
+                    Column {
+                        width: parent.width
+                        spacing: 2
+                        visible: (modal.updateState === "available" && modal.incomingLog.length > 0)
+                                 || (modal.updateState === "dirty" && modal.dirtyFiles.length > 0)
+                        Repeater {
+                            model: modal.updateState === "dirty"
+                                   ? modal.dirtyFiles
+                                   : modal.incomingLog.slice(0, 6)
+                            delegate: Text {
+                                required property var modelData
+                                width: parent.width
+                                text: "• " + modelData
+                                color: modal._fg(0.5)
+                                font.pixelSize: 10
+                                elide: Text.ElideRight
+                            }
+                        }
+                        Text {
+                            visible: modal.updateState === "available" && modal.incomingLog.length > 6
+                            text: "• …and " + (modal.incomingLog.length - 6) + " more"
+                            color: modal._fg(0.35)
+                            font.pixelSize: 10
+                        }
+                    }
+
+                    // Read the release notes on GitHub before updating.
+                    Text {
+                        visible: modal.updateState === "available"
+                                 && modal.repoWeb !== "" && modal.latestVersion !== ""
+                        text: "Read the release notes ↗"
+                        color: modal.theme ? modal.theme.accent : "#3478F6"
+                        font.pixelSize: 11
+                        MouseArea {
+                            anchors { fill: parent; margins: -4 }
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally(
+                                modal.repoWeb + "/releases/tag/" + modal.latestVersion)
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Updates to the newest tagged release of "
+                          + "github.com/D3m0nZOnFire/omarchy-dashboard, installs any new dependencies "
+                          + "and re-syncs the Hyprland blur / autostart config. A terminal opens for "
+                          + "the steps that need your password. Refused if you have local edits to "
+                          + "tracked files."
+                    color: modal._fg(0.35)
+                    font.pixelSize: 10
                 }
             }
         }
