@@ -42,8 +42,10 @@ category rail on the left:
 - **Layout** - a screen-shaped board with a **Left edge**, a **Right edge**
   and a **Hidden** tray. Drag tiles between the zones and reorder within a
   zone; changes apply immediately. The right panel appears only while a tile
-  is on it. The System tile is just another tile - it starts on the right,
-  drag it wherever you want.
+  is on it. Out of the box the system metrics (CPU, GPU, Memory, Disk,
+  Battery, Network, Ping) plus Sun sit on the left, System and Focus on the
+  right, and Media and Weather start hidden - drag any of them wherever you
+  like.
 - **Appearance** - glass-card opacity and an optional hairline border.
 - **Display** - which monitor the dashboard lives on.
 - **Weather** - the city for the Weather and Sun tiles.

@@ -52,10 +52,11 @@ Scope {
     // survives restarts. `tileOrder` is the master order; `placement` maps
     // each id to "left" | "right" | "hidden". Per-edge lists are the order
     // filtered by placement, so a within-edge reorder just rewrites order.
-    readonly property var defaultTileOrder: ["weather", "sun", "cpu", "memory", "gpu", "battery", "disk", "network", "ping", "media", "focus", "system"]
+    readonly property var defaultTileOrder: ["cpu", "gpu", "memory", "disk", "battery", "network", "ping", "sun", "system", "focus", "media", "weather"]
     // Where a tile sits when the user has never moved it. Anything not
-    // listed defaults to "left".
-    readonly property var defaultPlacement: ({ system: "right" })
+    // listed defaults to "left". Media and Weather start hidden - they need a
+    // player running / a location set to be useful.
+    readonly property var defaultPlacement: ({ system: "right", focus: "right", media: "hidden", weather: "hidden" })
     readonly property var tileLabels: ({
         weather: "Weather",
         sun:     "Sun",
@@ -1499,6 +1500,7 @@ Scope {
         tileLabels: shell.tileLabels
         order: shell.tileOrder
         placement: shell.placement
+        defaultPlacement: shell.defaultPlacement
         screens: Quickshell.screens
         overrideScreenName: shell.screenName
         activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""

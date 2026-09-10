@@ -17,6 +17,7 @@ PanelWindow {
     property var tileLabels: ({})
     property var order: []
     property var placement: ({})          // tileId -> "left" | "right" | "hidden"
+    property var defaultPlacement: ({})   // fallback zone per tile when unplaced
     property var screens: []
     property string overrideScreenName: ""
     property string activeScreenName: ""
@@ -105,7 +106,8 @@ PanelWindow {
     function _zoneOf(id) {
         var z = modal.placement ? modal.placement[id] : undefined
         if (z === "left" || z === "right" || z === "hidden") return z
-        return id === "system" ? "right" : "left"
+        var d = modal.defaultPlacement ? modal.defaultPlacement[id] : undefined
+        return (d === "left" || d === "right" || d === "hidden") ? d : "left"
     }
     // Desired board contents: known tiles, grouped left -> right -> hidden,
     // each group keeping the persisted order. A committed drop always
