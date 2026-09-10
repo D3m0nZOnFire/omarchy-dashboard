@@ -4,16 +4,19 @@ import QtQuick.Layouts
 Item {
     id: root
     property string label: ""
-    // Live Theme instance (see Theme.qml), shared from shell.qml — colors
+    // Live Theme instance (see Theme.qml), shared from shell.qml - colors
     // the glass fill and label from the active Omarchy theme when set,
     // otherwise falls back to a neutral dark-glass default.
     property var theme: null
     default property alias content: contentArea.data
+    // Optional small control pinned to the right end of the label row
+    // (e.g. the Focus tile's settings cog).
+    property Component headerAccessory: null
 
     implicitWidth: 296
     implicitHeight: contentArea.y + contentArea.implicitHeight + 12
 
-    // Glass background — tinted from the theme's own background color so
+    // Glass background - tinted from the theme's own background color so
     // it reads as "whitish glass" on light themes and "blackish glass" on
     // dark ones, instead of always being a flat dark tint.
     Rectangle {
@@ -22,7 +25,7 @@ Item {
         color: root.theme
                ? Qt.rgba(root.theme.background.r, root.theme.background.g, root.theme.background.b, root.theme.glassAlpha)
                : Qt.rgba(0.08, 0.08, 0.10, 0.5)
-        // Optional hairline outline — toggled from the settings modal.
+        // Optional hairline outline - toggled from the settings modal.
         border.width: (root.theme && root.theme.glassBorder) ? 1 : 0
         border.color: root.theme
                ? Qt.rgba(root.theme.foreground.r, root.theme.foreground.g, root.theme.foreground.b, 0.12)
@@ -40,6 +43,15 @@ Item {
         font.pixelSize: 10
         font.letterSpacing: 1.2
         font.weight: Font.Medium
+    }
+
+    // Optional right-aligned control on the label row.
+    Loader {
+        sourceComponent: root.headerAccessory
+        anchors {
+            right: parent.right; rightMargin: 12
+            verticalCenter: cardLabel.verticalCenter
+        }
     }
 
     // Content goes here (via default property)

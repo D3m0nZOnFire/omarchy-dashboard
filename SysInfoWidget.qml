@@ -8,8 +8,8 @@ Item {
     implicitHeight: col.implicitHeight
 
     // Passed from parent for live RAM/GPU reading and theming
-    property string ramInfo:    "— GB"
-    property string gpuInfo:    "—"
+    property string ramInfo:    "- GB"
+    property string gpuInfo:    "-"
     property color  accentColor: "#1793D1"   // default = Arch blue
     property color  textColor:   "white"
 
@@ -18,7 +18,7 @@ Item {
     property string _kernel:   ""
     property string _cpu:      ""
     property string _uptime:   ""
-    property string _theme: "—"
+    property string _theme: "-"
 
     // Reads theme immediately then watches for changes via inotifywait
     Process {
@@ -97,7 +97,7 @@ Item {
             Layout.fillWidth: true
             spacing: 14
 
-            // Omarchy logo — recolored to the active theme's accent
+            // Omarchy logo - recolored to the active theme's accent
             Item {
                 width: 72; height: 72
 
@@ -121,7 +121,7 @@ Item {
                 spacing: 3
 
                 Text {
-                    text: root._hostname || "—"
+                    text: root._hostname || "-"
                     color: root.textColor
                     font.pixelSize: 20
                     font.weight: Font.SemiBold ?? 63
@@ -129,7 +129,7 @@ Item {
                     Layout.fillWidth: true
                 }
                 Text {
-                    text: "arch@" + (root._hostname || "—")
+                    text: "arch@" + (root._hostname || "-")
                     color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.35)
                     font.pixelSize: 10
                 }
@@ -158,10 +158,10 @@ Item {
             Text { text: "Arch Linux"; color: root.textColor;   font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "Kernel";     color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root._kernel || "—"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+            Text { text: root._kernel || "-"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
 
             Text { text: "Uptime";     color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
-            Text { text: root._uptime || "—"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true }
+            Text { text: root._uptime || "-"; color: root.textColor; font.pixelSize: 11; Layout.fillWidth: true }
 
             Text { text: "WM";         color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
             Text { text: "Hyprland";   color: root.textColor;   font.pixelSize: 11 }
@@ -171,7 +171,7 @@ Item {
 
             Text { text: "CPU";        color: accentColor; font.pixelSize: 11; font.weight: Font.Medium }
             Text {
-                text: root._cpu || "—"
+                text: root._cpu || "-"
                 color: root.textColor; font.pixelSize: 11
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap

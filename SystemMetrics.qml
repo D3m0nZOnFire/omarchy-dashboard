@@ -359,7 +359,7 @@ Item {
     }
 
     function _parsePing(text) {
-        // rtt min/avg/max/mdev = 14.x/60.x/100.x/y ms  — use avg (2nd value)
+        // rtt min/avg/max/mdev = 14.x/60.x/100.x/y ms  - use avg (2nd value)
         const m = text.match(/rtt[^=]*=\s*[\d.]+\/([\d.]+)/)
         root.pingMs = m ? parseFloat(m[1]) : -1
         root.pingHistory = _push(root.pingHistory, root.pingMs < 0 ? 0 : root.pingMs)

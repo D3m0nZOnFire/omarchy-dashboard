@@ -1,6 +1,6 @@
 import QtQuick
 
-// Optional overrides — the dashboard works with no changes here on most
+// Optional overrides - the dashboard works with no changes here on most
 // setups. Only edit this if the defaults guess wrong for your machine.
 Item {
     // Which output to attach the panels to, e.g. "eDP-1" (see `hyprctl

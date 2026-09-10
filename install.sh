@@ -37,9 +37,9 @@ if [ -e "$DEST/.git" ] && git -C "$DEST" remote get-url origin 2>/dev/null | gre
   cur="$(git -C "$DEST" symbolic-ref --short -q HEAD || echo '')"
   if [ "$cur" = "$BRANCH" ]; then
     say "Updating $DEST ($cur)"
-    git -C "$DEST" pull --ff-only origin "$cur" || warn "Could not fast-forward $cur — update manually."
+    git -C "$DEST" pull --ff-only origin "$cur" || warn "Could not fast-forward $cur - update manually."
   else
-    warn "$DEST is on branch '$cur' (expected '$BRANCH') — leaving it as-is."
+    warn "$DEST is on branch '$cur' (expected '$BRANCH') - leaving it as-is."
   fi
 elif [ -e "$DEST" ]; then
   die "$DEST already exists and is not an omarchy-dashboard checkout. Move it aside and re-run."
@@ -80,7 +80,7 @@ append_block() { # $1 = file, $2... = lines
 
 # --- d. blur config ------------------------------------------------------
 if grep -q "$NS" "$LOOKNFEEL"; then
-  say "Blur already configured in looknfeel.lua — leaving it."
+  say "Blur already configured in looknfeel.lua - leaving it."
 else
   say "Enabling dashboard blur in looknfeel.lua"
   append_block "$LOOKNFEEL" \
@@ -95,7 +95,7 @@ fi
 
 # --- e. autostart ------------------------------------------------------
 if grep -Eq 'quickshell/dashboard|-c dashboard' "$AUTOSTART"; then
-  say "Autostart already set in autostart.lua — leaving it."
+  say "Autostart already set in autostart.lua - leaving it."
 else
   say "Adding dashboard to autostart.lua"
   append_block "$AUTOSTART" 'o.launch_on_start("qs -c dashboard")'
@@ -103,7 +103,7 @@ fi
 
 # --- f. sensors nudge -------------------------------------------------
 if ! sensors 2>/dev/null | grep -Eq 'Core|Package|temp'; then
-  warn "No temp sensors detected — run 'sudo sensors-detect --auto' once or the temp tiles stay blank."
+  warn "No temp sensors detected - run 'sudo sensors-detect --auto' once or the temp tiles stay blank."
 fi
 
 # --- g. apply now -------------------------------------------------------
@@ -114,7 +114,7 @@ if ! pgrep -f '(quickshell|qs) .*(-c dashboard|quickshell/dashboard)' >/dev/null
   say "Launching the dashboard"
   qs -c dashboard >/dev/null 2>&1 & disown
 else
-  say "Dashboard already running — restart Hyprland or 'qs -c dashboard' to pick up changes."
+  say "Dashboard already running - restart Hyprland or 'qs -c dashboard' to pick up changes."
 fi
 
 # --- h. summary --------------------------------------------------------

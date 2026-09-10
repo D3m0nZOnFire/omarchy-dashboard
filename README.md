@@ -19,11 +19,16 @@ theme live, no restart needed.
 - Memory, disk, and NVIDIA GPU usage (utilization, VRAM, temp, power draw)
 - Battery status with time-to-full/empty (UPower)
 - Network throughput (RX/TX) and ping, both with sparklines
-- Now-playing media tile (MPRIS) — art, title/artist, progress bar, and
+- Now-playing media tile (MPRIS) - art, title/artist, progress bar, and
   prev/play-pause/next controls, for whichever player is currently active
+- Weather tile (wttr.in) - temperature, condition, feels-like, humidity, wind
+- Sun tile - sunrise/sunset times with a live sun-position arc
+- Focus tile - a work/break (Pomodoro) timer with the now-playing track and
+  transport controls; set the work/break lengths from the cog on the tile, and
+  get an Omarchy desktop notification when each period ends
 - Neofetch-style system info panel (host, kernel, uptime, WM, theme, CPU, GPU, memory)
 - Live theme sync with Omarchy
-- Drag-to-reorder and hide/show any tile — see below
+- Drag-to-reorder and hide/show any tile - see below
 - Columns adapt automatically: if the tiles don't fit your screen's height,
   extras overflow into a new column instead of running off-screen
 
@@ -32,8 +37,14 @@ theme live, no restart needed.
 Double-click any tile to open the settings panel. Drag tiles up/down to
 reorder them, or drag one across into the Hidden column to hide it (drag it
 back to bring it back). The **DISPLAY** list at the top picks which monitor
-the dashboard lives on. Changes apply immediately and are remembered
-automatically — no config file to edit.
+the dashboard lives on, and **WEATHER LOCATION** sets the city for the Weather
+and Sun tiles. Changes apply immediately and are remembered automatically - no
+config file to edit.
+
+The Weather and Sun tiles share their location with the Omarchy bar weather
+widget (`~/.local/state/omarchy/settings/weather.json`) - set it from either
+place, or with `omarchy-weather-location --set <city>`. With nothing set, the
+location is auto-detected from your IP.
 
 ## Dependencies
 
@@ -45,6 +56,7 @@ automatically — no config file to edit.
 | `nvidia-smi` | GPU stats (NVIDIA only) | `nvidia-utils` |
 | `lm-sensors` | CPU temps | `lm_sensors` |
 | `inotify-tools` | Live theme/state watching | `inotify-tools` |
+| `curl` | Weather / Sun tiles (wttr.in) | `curl` |
 | coreutils | `ping`, `df`, `awk`, `hostname`, `uname` | already on your system |
 
 Run `sudo sensors-detect` once if you've never configured `sensors`, or temp
@@ -59,7 +71,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboa
 One command: installs the dependencies, clones into
 `~/.config/quickshell/dashboard`, enables the frosted-glass blur in
 `looknfeel.lua`, and sets the dashboard to **auto-start** with Hyprland. It
-then launches it right away. Safe to re-run — that's also how you update.
+then launches it right away. Safe to re-run - that's also how you update.
 `~/.config/quickshell/dashboard/uninstall.sh` backs the config changes out.
 
 No config file to touch afterwards: the panels attach to your laptop screen
@@ -88,13 +100,13 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
    qs -c dashboard -d     # detached; or add to autostart
    ```
 
-   Autostart on Omarchy — add to `~/.config/hypr/autostart.lua`:
+   Autostart on Omarchy - add to `~/.config/hypr/autostart.lua`:
 
    ```lua
    o.launch_on_start("qs -c dashboard")
    ```
 
-3. **Enable Hyprland background blur** — required. The cards are translucent by
+3. **Enable Hyprland background blur** - required. The cards are translucent by
    design; without blur they're just washed-out gray boxes.
 
    Omarchy (`~/.config/hypr/looknfeel.lua`):
@@ -125,7 +137,7 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
    ```
 
    Then `hyprctl reload`. (`ignore_alpha` skips blurring the fully transparent
-   gaps between cards — drop it if you want those blurred too.)
+   gaps between cards - drop it if you want those blurred too.)
 
 </details>
 
@@ -138,11 +150,14 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
 - **Wrong monitor**: set `screenName` in `Config.qml` to the output you want
   (see `hyprctl monitors` for names).
 - **Flat gray cards, no blur**: blur isn't on, or `hyprctl reload` didn't take
-  — check `hyprctl getoption decoration:blur:enabled`.
+  - check `hyprctl getoption decoration:blur:enabled`.
 - **Media tile says "Nothing playing"**: it needs a running player that
-  exposes MPRIS — most do (Spotify, browsers playing audio/video, VLC, mpv
+  exposes MPRIS - most do (Spotify, browsers playing audio/video, VLC, mpv
   with the `mpris` plugin, etc.).
+- **Weather tile stuck on "Fetching…"**: check `curl` is installed and
+  `curl -fsS 'https://wttr.in/?format=j1'` returns JSON; wttr.in rate-limits,
+  so it can be briefly unavailable.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

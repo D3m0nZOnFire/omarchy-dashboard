@@ -3,7 +3,7 @@ import QtQuick
 Canvas {
     id: root
 
-    property real value: 0          // 0–100
+    property real value: 0          // 0-100
     property color fillColor: "#3478F6"
     property color trackColor: Qt.rgba(1, 1, 1, 0.08)
     property color textColor: "white"

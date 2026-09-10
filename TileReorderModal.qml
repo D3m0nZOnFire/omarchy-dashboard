@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 
 // Full-screen overlay opened by double-clicking the dashboard. Shown tiles
-// sit in a column on the left, hidden ones in a column on the right — drag
+// sit in a column on the left, hidden ones in a column on the right - drag
 // a tile across the gap to hide/show it, drag within a column to reorder.
 // Each zone is always exactly one column (it never wraps into more), so
 // the modal's width is fixed and only its height adapts to whichever
@@ -31,6 +31,10 @@ PanelWindow {
     // Whether the right-hand System Info panel is shown.
     property bool rightPanelEnabled: true
 
+    // Weather location, shared with the Omarchy bar weather widget. "" means
+    // IP auto-detect.
+    property string weatherLocation: ""
+
     signal orderEdited(var newOrder)
     signal visibilityEdited(var newHidden)
     // "" clears the override and returns to auto-detect.
@@ -38,6 +42,8 @@ PanelWindow {
     signal blurEdited(int pct)
     signal borderEdited(bool on)
     signal rightPanelEdited(bool on)
+    // "" clears the stored location and returns to IP auto-detect.
+    signal weatherLocationEdited(string name)
 
     function open()  { opened = true }
     function close() { opened = false }
@@ -50,7 +56,7 @@ PanelWindow {
     color: "transparent"
 
     WlrLayershell.layer:         WlrLayer.Overlay
-    // Same namespace as the dashboard panels (shell.qml) — Hyprland's
+    // Same namespace as the dashboard panels (shell.qml) - Hyprland's
     // frosted-glass blur rule (~/.config/hypr/looknfeel.lua) is scoped to
     // this exact namespace, so reusing it is what gives the card the same
     // blurred-glass look as the tiles instead of a flat fill.
@@ -59,7 +65,7 @@ PanelWindow {
     // from whatever else is running while it's open.
     WlrLayershell.keyboardFocus: modal.opened ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-    // Restricts the surface's clickable/input area to just the card —
+    // Restricts the surface's clickable/input area to just the card -
     // this surface still spans the whole screen (so it can center the
     // card), but without this, it would swallow every click on the
     // screen, blocking interaction with whatever's underneath even where
@@ -74,7 +80,7 @@ PanelWindow {
         return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
     }
     // Text color for content sitting on theme.accent (e.g. the Done button)
-    // — picks whichever of the theme's foreground/background contrasts more
+    // - picks whichever of the theme's foreground/background contrasts more
     // with accent, since accent's own lightness varies a lot theme to theme.
     function _onAccent() {
         if (!modal.theme) return Qt.rgba(1, 1, 1, 1)
@@ -114,7 +120,7 @@ PanelWindow {
         for (i = 0; i < hiddenIds.length; i++) tileModel.append({ tileId: hiddenIds[i] })
         list.shownCount = visible.length
     }
-    // A single drag can reorder, hide, or show a tile — always report both.
+    // A single drag can reorder, hide, or show a tile - always report both.
     function _commit() {
         var order = [], hidden = []
         for (var i = 0; i < tileModel.count; i++) {
@@ -137,7 +143,7 @@ PanelWindow {
         Keys.onEscapePressed: modal.close()
     }
 
-    // Card position — starts centered; -1 means "not dragged yet", so it
+    // Card position - starts centered; -1 means "not dragged yet", so it
     // keeps re-centering (e.g. on screen resize) until the user grabs the
     // header and moves it, after which it stays put for the rest of the
     // session (drag.target below overwrites these via onReleased).
@@ -151,11 +157,11 @@ PanelWindow {
         y: modal.cardY >= 0 ? modal.cardY : (parent.height - height) / 2
         width: content.implicitWidth + 40
         height: content.implicitHeight + 40
-        // Same glass fill as StatCard.qml — low-alpha theme background so
+        // Same glass fill as StatCard.qml - low-alpha theme background so
         // the blurred desktop shows through, tinted for light/dark themes.
         radius: 16
         // Follows the BLUR setting so it previews toward the opaque end, but
-        // never drops below 0.5 — this is the surface you edit that setting from.
+        // never drops below 0.5 - this is the surface you edit that setting from.
         color: modal.theme
                ? Qt.rgba(modal.theme.background.r, modal.theme.background.g, modal.theme.background.b, Math.max(0.5, modal.theme.glassAlpha))
                : Qt.rgba(0.08, 0.08, 0.10, 0.5)
@@ -291,8 +297,88 @@ PanelWindow {
                 }
             }
 
+            // ── Weather location ────────────────────────────────────
+            // Shared with the Omarchy bar weather widget
+            // (~/.local/state/omarchy/settings/weather.json). Blank = auto.
+            Column {
+                Layout.preferredWidth: list.hiddenX + list.colWidth
+                spacing: 6
+
+                Text {
+                    text: "WEATHER LOCATION"
+                    color: modal._fg(0.35)
+                    font.pixelSize: 9
+                    font.letterSpacing: 1
+                }
+
+                Rectangle {
+                    width: list.hiddenX + list.colWidth
+                    height: 38
+                    radius: 10
+                    color: modal._fg(0.06)
+                    border.width: 1
+                    border.color: locInput.activeFocus
+                                  ? (modal.theme ? modal.theme.accent : "#3478F6")
+                                  : modal._fg(0.1)
+
+                    TextInput {
+                        id: locInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: modal._fg(0.9)
+                        font.pixelSize: 12
+                        clip: true
+                        selectByMouse: true
+                        selectionColor: modal.theme ? modal.theme.accent : "#3478F6"
+
+                        function _commit() {
+                            modal.weatherLocationEdited(text.trim())
+                            focus = false
+                        }
+                        Keys.onReturnPressed: _commit()
+                        Keys.onEnterPressed: _commit()
+                        Keys.onEscapePressed: { text = ""; focus = false }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: locInput.text === "" && !locInput.activeFocus
+                            text: modal.weatherLocation !== ""
+                                  ? modal.weatherLocation
+                                  : "Auto-detect (IP)"
+                            color: modal._fg(0.4)
+                            font.pixelSize: 12
+                        }
+                    }
+                }
+
+                Row {
+                    spacing: 10
+                    Text {
+                        text: "Type a city · Enter to save"
+                        color: modal._fg(0.3)
+                        font.pixelSize: 9
+                    }
+                    Text {
+                        visible: modal.weatherLocation !== ""
+                        text: "· use auto-detect"
+                        color: modal.theme ? modal.theme.accent : "#3478F6"
+                        font.pixelSize: 9
+                        MouseArea {
+                            anchors { fill: parent; margins: -4 }
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                locInput.text = ""
+                                modal.weatherLocationEdited("")
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Blur picker ─────────────────────────────────────────
-            // Opacity of every glass card, from transparent to opaque —
+            // Opacity of every glass card, from transparent to opaque -
             // a segmented row of buttons that splits the width evenly.
             Column {
                 Layout.preferredWidth: list.hiddenX + list.colWidth
@@ -436,7 +522,7 @@ PanelWindow {
                 }
             }
 
-            // ── Two fixed columns — width never changes, only height ──
+            // ── Two fixed columns - width never changes, only height ──
             Item {
                 id: list
                 Layout.preferredWidth: hiddenX + colWidth
@@ -528,7 +614,7 @@ PanelWindow {
                                 var willBeHidden = chip.x > (list.colWidth + list.zoneGap / 2)
                                 var row = Math.max(0, Math.round(chip.y / list.slot))
                                 var wasHidden = chip.tileHidden
-                                // Shown-tile count excluding the dragged tile itself —
+                                // Shown-tile count excluding the dragged tile itself -
                                 // the pivot both branches clamp against, regardless of
                                 // which column it's headed to. (Depends only on wasHidden:
                                 // removing an already-hidden tile never changes it.)
@@ -542,7 +628,7 @@ PanelWindow {
                                 var moved = target !== chip.visualIndex
                                 var zoneChanged = wasHidden !== willBeHidden
                                 // Crossing the shown/hidden boundary can land a tile
-                                // back at the exact index it started at — the zone
+                                // back at the exact index it started at - the zone
                                 // still flipped even though nothing needs to move.
                                 if (!moved && !zoneChanged) return
                                 if (moved) tileModel.move(chip.visualIndex, target, 1)

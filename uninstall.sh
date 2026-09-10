@@ -30,4 +30,4 @@ if command -v hyprctl >/dev/null && hyprctl version >/dev/null 2>&1; then
 fi
 pkill -f '(quickshell|qs) .*(-c dashboard|quickshell/dashboard)' 2>/dev/null || true
 
-say "Done. The clone is still at $DEST — 'rm -rf $DEST' to remove it."
+say "Done. The clone is still at $DEST - 'rm -rf $DEST' to remove it."

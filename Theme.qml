@@ -31,8 +31,24 @@ Item {
     property real glassAlpha: 0.5
     property bool glassBorder: false
 
+    // The concrete monospace / Nerd Font family (what `monospace` resolves to,
+    // e.g. "JetBrainsMono Nerd Font") - matches the Omarchy bar, so glyphs like
+    // the weather icons render the same. Resolved once at startup.
+    property string monoFamily: "JetBrainsMono Nerd Font"
+    Process {
+        command: ["fc-match", "-f", "%{family[0]}", "monospace"]
+        running: true
+        stdout: StdioCollector {
+            id: fontOut
+            onStreamFinished: {
+                var f = String(fontOut.text || "").trim()
+                if (f) root.monoFamily = f
+            }
+        }
+    }
+
     function _apply(map) {
-        if (!map.accent) return   // incomplete read (e.g. mid theme-swap) — ignore
+        if (!map.accent) return   // incomplete read (e.g. mid theme-swap) - ignore
         mode          = map.mode          || mode
         background    = map.background    || background
         foreground    = map.foreground    || foreground
