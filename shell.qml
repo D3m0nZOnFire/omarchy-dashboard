@@ -47,10 +47,15 @@ Scope {
     // Use `shell._theme` there instead.
     readonly property Item _theme: theme
 
-    // ── Tile order - which stat tiles show, and in what order ──────
-    // Persisted to disk so a drag-reorder (via double-click → modal)
-    // survives restarts.
-    readonly property var defaultTileOrder: ["weather", "sun", "cpu", "memory", "gpu", "battery", "disk", "network", "ping", "media", "focus"]
+    // ── Tile placement - which tiles show, on which edge, in what order ──
+    // Persisted to disk so a drag (via double-click → Settings → Layout)
+    // survives restarts. `tileOrder` is the master order; `placement` maps
+    // each id to "left" | "right" | "hidden". Per-edge lists are the order
+    // filtered by placement, so a within-edge reorder just rewrites order.
+    readonly property var defaultTileOrder: ["weather", "sun", "cpu", "memory", "gpu", "battery", "disk", "network", "ping", "media", "focus", "system"]
+    // Where a tile sits when the user has never moved it. Anything not
+    // listed defaults to "left".
+    readonly property var defaultPlacement: ({ system: "right" })
     readonly property var tileLabels: ({
         weather: "Weather",
         sun:     "Sun",
@@ -63,9 +68,17 @@ Scope {
         ping:    "Ping",
         media:   "Media",
         focus:   "Focus",
+        system:  "System",
+    })
+    // id → Component, shared by both panels (see the Component blocks near
+    // the end of this file).
+    readonly property var tileMap: ({
+        weather: weatherTile, sun: sunTile, cpu: cpuTile, memory: memoryTile,
+        gpu: gpuTile, battery: batteryTile, disk: diskTile, network: networkTile,
+        ping: pingTile, media: mediaTile, focus: focusTile, system: systemTile,
     })
     property var tileOrder: defaultTileOrder
-    property var hiddenTiles: []
+    property var placement: ({})
     // Output the panels are pinned to, chosen in the modal's Display picker.
     // "" means "no override" - fall back to Config.screenName / auto-detect.
     property string screenName: ""
@@ -86,14 +99,19 @@ Scope {
     // Whether the glass cards draw a hairline outline. Chosen in the
     // modal's BORDER toggle; off by default.
     property bool tileBorder: false
-    property bool showRightPanel: true
     // Focus tile work/break lengths (minutes), edited via the cog on the tile.
     property int focusWorkMinutes: 25
     property int focusBreakMinutes: 5
-    // What the left panel actually renders - tileOrder minus hidden tiles.
-    readonly property var visibleTileOrder: shell.tileOrder.filter(function(id) {
-        return shell.hiddenTiles.indexOf(id) === -1
-    })
+
+    // Resolved placement of one tile, honouring the default.
+    function _placeOf(id) {
+        var z = shell.placement[id]
+        if (z === "left" || z === "right" || z === "hidden") return z
+        return shell.defaultPlacement[id] || "left"
+    }
+    // What each panel renders.
+    readonly property var leftTiles:  shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "left" })
+    readonly property var rightTiles: shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "right" })
 
     // Reconciles the saved order against the known tile ids - drops
     // anything unrecognized, appends any tile missing from a stale file.
@@ -115,29 +133,47 @@ Scope {
     }
     function _applyLoadedTileOrder() {
         shell.tileOrder = shell._reconcileTileOrder(tileOrderAdapter.order || [])
-        shell.hiddenTiles = (tileOrderAdapter.hidden || []).filter(function(id) {
-            return shell.defaultTileOrder.indexOf(id) !== -1
-        })
+        shell.placement = shell._loadPlacement()
         shell.screenName = tileOrderAdapter.screenName || ""
         shell.blurPercent = [0, 25, 50, 75, 100].indexOf(tileOrderAdapter.blur) !== -1
                             ? tileOrderAdapter.blur : 50
         shell.tileBorder = tileOrderAdapter.border === true
-        shell.showRightPanel = tileOrderAdapter.rightPanel !== false
         shell.focusWorkMinutes  = _clampInt(tileOrderAdapter.focusWork,  1, 180, 25)
         shell.focusBreakMinutes = _clampInt(tileOrderAdapter.focusBreak, 1, 60,  5)
+    }
+    // Reads `placement`, or migrates a pre-placement file (old `hidden`
+    // array + `rightPanel` bool) the first time it is seen.
+    function _loadPlacement() {
+        var raw = tileOrderAdapter.placement || ({})
+        var valid = { left: true, right: true, hidden: true }
+        var out = {}
+        var hasKeys = false
+        for (var k in raw) {
+            hasKeys = true
+            if (shell.defaultTileOrder.indexOf(k) !== -1 && valid[raw[k]]) out[k] = raw[k]
+        }
+        if (hasKeys) return out
+
+        var oldHidden = tileOrderAdapter.hidden || []
+        var p = {}
+        for (var i = 0; i < shell.tileOrder.length; i++) {
+            var id = shell.tileOrder[i]
+            if (id !== "system" && oldHidden.indexOf(id) !== -1) p[id] = "hidden"
+        }
+        p["system"] = (tileOrderAdapter.rightPanel === false) ? "hidden" : "right"
+        // Persist the upgraded shape once, after this load settles.
+        Qt.callLater(function() { shell.savePlacement(shell.tileOrder, p) })
+        return p
     }
     function _clampInt(v, lo, hi, fallback) {
         var n = parseInt(v)
         return (!isNaN(n) && n >= lo && n <= hi) ? n : fallback
     }
-    function saveTileOrder(newOrder) {
+    function savePlacement(newOrder, newPlacement) {
         shell.tileOrder = newOrder
+        shell.placement = newPlacement
         tileOrderAdapter.order = newOrder
-        tileOrderFile.writeAdapter()
-    }
-    function saveHiddenTiles(newHidden) {
-        shell.hiddenTiles = newHidden
-        tileOrderAdapter.hidden = newHidden
+        tileOrderAdapter.placement = newPlacement
         tileOrderFile.writeAdapter()
     }
     function saveScreenName(name) {
@@ -153,11 +189,6 @@ Scope {
     function saveTileBorder(on) {
         shell.tileBorder = on
         tileOrderAdapter.border = on
-        tileOrderFile.writeAdapter()
-    }
-    function saveShowRightPanel(on) {
-        shell.showRightPanel = on
-        tileOrderAdapter.rightPanel = on
         tileOrderFile.writeAdapter()
     }
     function saveFocusTimers(workMin, breakMin) {
@@ -179,11 +210,14 @@ Scope {
         JsonAdapter {
             id: tileOrderAdapter
             property var order: shell.defaultTileOrder
+            property var placement: ({})
+            // `hidden` and `rightPanel` are read only to migrate a
+            // pre-placement file (see _loadPlacement); no longer written.
             property var hidden: []
+            property bool rightPanel: true
             property string screenName: ""
             property int blur: 50
             property bool border: false
-            property bool rightPanel: true
             property int focusWork: 25
             property int focusBreak: 5
         }
@@ -299,6 +333,7 @@ Scope {
     PanelWindow {
         id: leftPanel
 
+        visible:         shell.leftTiles.length > 0
         screen:          shell._mainScreen
         anchors {        top: true; left: true; bottom: true; right: false }
         implicitWidth:   tileFlow.width + 16   // 8 left + 8 right margins
@@ -325,30 +360,14 @@ Scope {
             flow: Flow.TopToBottom
             spacing: 12
 
-            // Each tile is a Component, keyed by id, instantiated in
-            // whatever order shell.tileOrder says (see Repeater below).
-            property var tileMap: ({
-                weather: weatherTile,
-                sun:     sunTile,
-                cpu:     cpuTile,
-                memory:  memoryTile,
-                gpu:     gpuTile,
-                battery: batteryTile,
-                disk:    diskTile,
-                network: networkTile,
-                ping:    pingTile,
-                media:   mediaTile,
-                focus:   focusTile,
-            })
-
             Repeater {
-                model: shell.visibleTileOrder
+                model: shell.leftTiles
                 delegate: Item {
                     width: 296
                     height: tileLoader.height
 
                     // Double-click the tile itself (not the empty panel
-                    // around it) to reorder tiles. Sits behind the loaded
+                    // around it) to open Settings. Sits behind the loaded
                     // card's own content, so any interactive control inside
                     // it (e.g. the media tile's playback buttons) still
                     // takes priority.
@@ -361,10 +380,16 @@ Scope {
                     Loader {
                         id: tileLoader
                         width: parent.width
-                        sourceComponent: tileFlow.tileMap[modelData]
+                        sourceComponent: shell.tileMap[modelData]
                     }
                 }
             }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  Tile registry - Components shared by the left and right panels
+    // ════════════════════════════════════════════════════════════
 
                 // ── CPU ──────────────────────────────────────────────
                 Component { id: cpuTile; StatCard {
@@ -1062,10 +1087,14 @@ Scope {
                     theme: shell._theme
                     Layout.fillWidth: true
 
-                    // Settings cog on the label row - opens the work/break editor.
+                    // Settings cog on the label row - appears only while the
+                    // pointer is over the Focus tile.
                     headerAccessory: Component {
                         Item {
                             implicitWidth: 13; implicitHeight: 13
+                            opacity: (focusCard.hovered || cogArea.containsMouse) ? 1 : 0
+                            visible: opacity > 0
+                            Behavior on opacity { NumberAnimation { duration: 120 } }
                             Image {
                                 id: cogImg
                                 anchors.fill: parent
@@ -1084,7 +1113,7 @@ Scope {
                                 anchors { fill: parent; margins: -7 }
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: focusSettingsModal.open()
+                                onClicked: reorderModal.open("focus")
                             }
                         }
                     }
@@ -1352,54 +1381,59 @@ Scope {
                         Item { Layout.fillWidth: true }
                     }
                 } }
-        }
 
-        // ── Left panel helpers ────────────────────────────────────────
+                // ── SYSTEM (neofetch-style host info) ─────────────────
+                Component { id: systemTile; StatCard {
+                    label: "System"
+                    theme: shell._theme
+                    Layout.fillWidth: true
 
-        TileReorderModal {
-            id: reorderModal
-            screen: shell._mainScreen
-            theme: theme
-            tileLabels: shell.tileLabels
-            order: shell.tileOrder
-            hiddenTiles: shell.hiddenTiles
-            screens: Quickshell.screens
-            overrideScreenName: shell.screenName
-            activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""
-            blurPercent: shell.blurPercent
-            borderEnabled: shell.tileBorder
-            rightPanelEnabled: shell.showRightPanel
-            weatherLocation: weather.locName
-            onOrderEdited: newOrder => shell.saveTileOrder(newOrder)
-            onVisibilityEdited: newHidden => shell.saveHiddenTiles(newHidden)
-            onScreenEdited: name => shell.saveScreenName(name)
-            onBlurEdited: pct => shell.saveBlurPercent(pct)
-            onBorderEdited: on => shell.saveTileBorder(on)
-            onRightPanelEdited: on => shell.saveShowRightPanel(on)
-            onWeatherLocationEdited: name => shell.setWeatherLocation(name)
-        }
+                    SysInfoWidget {
+                        Layout.fillWidth: true
+                        ramInfo: metrics.ramTotalGB.toFixed(0) + " GB"
+                        gpuInfo: metrics.gpuName || "-"
+                        accentColor: theme.accent
+                        textColor: theme.foreground
+                    }
+                } }
 
-        // Work/break editor for the Focus tile (opened by its cog).
-        FocusSettingsModal {
-            id: focusSettingsModal
-            screen: shell._mainScreen
-            theme: theme
-            workMinutes: shell.focusWorkMinutes
-            breakMinutes: shell.focusBreakMinutes
-            onSaved: (work, brk) => shell.saveFocusTimers(work, brk)
-        }
+    // Settings window - opened by double-clicking any tile or card.
+    SettingsModal {
+        id: reorderModal
+        screen: shell._mainScreen
+        theme: theme
+        tileLabels: shell.tileLabels
+        order: shell.tileOrder
+        placement: shell.placement
+        screens: Quickshell.screens
+        overrideScreenName: shell.screenName
+        activeScreenName: shell._mainScreen ? shell._mainScreen.name : ""
+        blurPercent: shell.blurPercent
+        borderEnabled: shell.tileBorder
+        weatherLocation: weather.locName
+        workMinutes: shell.focusWorkMinutes
+        breakMinutes: shell.focusBreakMinutes
+        onPlacementEdited: (o, p) => shell.savePlacement(o, p)
+        onScreenEdited: name => shell.saveScreenName(name)
+        onBlurEdited: pct => shell.saveBlurPercent(pct)
+        onBorderEdited: on => shell.saveTileBorder(on)
+        onWeatherLocationEdited: name => shell.setWeatherLocation(name)
+        onFocusTimersEdited: (work, brk) => shell.saveFocusTimers(work, brk)
     }
 
     // ════════════════════════════════════════════════════════════
-    //  RIGHT PANEL - System Info (neofetch style)
+    //  RIGHT PANEL - user-placed tiles on the right screen edge
     // ════════════════════════════════════════════════════════════
+    // Mirror of the left panel: tiles stack top-to-bottom and overflow
+    // into a new column toward screen centre. Shown only when at least
+    // one tile is assigned to the right edge (Settings → Layout).
     PanelWindow {
         id: rightPanel
 
-        visible:         shell.showRightPanel
+        visible:         shell.rightTiles.length > 0
         screen:          shell._mainScreen
-        anchors {        top: true; right: true }
-        implicitWidth:   300
+        anchors {        top: true; right: true; bottom: true }
+        implicitWidth:   rightFlow.width + 16
 
         WlrLayershell.layer:         WlrLayer.Bottom
         WlrLayershell.namespace:     "quickshell:dashboard"
@@ -1407,37 +1441,38 @@ Scope {
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
 
-        // Height tracks card content
-        implicitHeight: sysCard.implicitHeight + 40 + 8
-
-        Item {
+        Flow {
+            id: rightFlow
             anchors {
-                top: parent.top; topMargin: 40
+                top: parent.top;     topMargin:   40
                 right: parent.right; rightMargin: 8
             }
-            width: 284   // 300 - 8 - 8
-            height: sysCard.implicitHeight
+            height: Math.max(1, (rightPanel.screen ? rightPanel.screen.height : 1000) - 40 - 8)
+            flow: Flow.TopToBottom
+            spacing: 12
+            // Mirror the layout direction so the first column hugs the
+            // screen edge (like the left panel) and extra columns grow
+            // inward. Only the Flow itself is mirrored, not tile content.
+            LayoutMirroring.enabled: true
+            LayoutMirroring.childrenInherit: false
 
-            // Double-click the card to open the settings modal, same as
-            // the left tiles. Sits behind the card's own content.
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
-                onDoubleClicked: reorderModal.open()
-            }
+            Repeater {
+                model: shell.rightTiles
+                delegate: Item {
+                    width: 296
+                    height: rTileLoader.height
 
-            StatCard {
-                id: sysCard
-                label: "System"
-                theme: theme
-                anchors { left: parent.left; right: parent.right }
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton
+                        onDoubleClicked: reorderModal.open()
+                    }
 
-                SysInfoWidget {
-                    Layout.fillWidth: true
-                    ramInfo: metrics.ramTotalGB.toFixed(0) + " GB"
-                    gpuInfo: metrics.gpuName || "-"
-                    accentColor: theme.accent
-                    textColor: theme.foreground
+                    Loader {
+                        id: rTileLoader
+                        width: parent.width
+                        sourceComponent: shell.tileMap[modelData]
+                    }
                 }
             }
         }

@@ -13,6 +13,12 @@ Item {
     // (e.g. the Focus tile's settings cog).
     property Component headerAccessory: null
 
+    // True while the pointer is anywhere over the card - used by tiles that
+    // want a control to appear only on hover. Passive, so it never steals
+    // events from the card's own interactive bits.
+    readonly property bool hovered: cardHover.hovered
+    HoverHandler { id: cardHover }
+
     implicitWidth: 296
     implicitHeight: contentArea.y + contentArea.implicitHeight + 12
 

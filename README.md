@@ -1,9 +1,10 @@
 # omarchy-dashboard
 
-A two-panel [Quickshell](https://quickshell.outfoxxed.me/) widget for
-[Omarchy](https://omarchy.org) (Hyprland + Arch): live system stats on the
-left, neofetch-style info on the right. Glass cards that follow your Omarchy
-theme live, no restart needed.
+A [Quickshell](https://quickshell.outfoxxed.me/) widget for
+[Omarchy](https://omarchy.org) (Hyprland + Arch): live system stats, weather,
+a Pomodoro timer and neofetch-style host info as glass cards on the left and
+right screen edges - put each tile on whichever edge you like. Cards follow
+your Omarchy theme live, no restart needed.
 
 | Tokyo Night | White | Vantablack | Catppuccin |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
@@ -26,20 +27,29 @@ theme live, no restart needed.
 - Focus tile - a work/break (Pomodoro) timer with the now-playing track and
   transport controls; set the work/break lengths from the cog on the tile, and
   get an Omarchy desktop notification when each period ends
-- Neofetch-style system info panel (host, kernel, uptime, WM, theme, CPU, GPU, memory)
+- Neofetch-style System tile (host, kernel, uptime, WM, theme, CPU, GPU, memory)
 - Live theme sync with Omarchy
-- Drag-to-reorder and hide/show any tile - see below
+- Put any tile on the left edge, the right edge, or hide it - see below
 - Columns adapt automatically: if the tiles don't fit your screen's height,
   extras overflow into a new column instead of running off-screen
 
-## Reordering & hiding tiles
+## Settings
 
-Double-click any tile to open the settings panel. Drag tiles up/down to
-reorder them, or drag one across into the Hidden column to hide it (drag it
-back to bring it back). The **DISPLAY** list at the top picks which monitor
-the dashboard lives on, and **WEATHER LOCATION** sets the city for the Weather
-and Sun tiles. Changes apply immediately and are remembered automatically - no
-config file to edit.
+Double-click any tile to open **Dashboard Settings** - a window with a
+category rail on the left:
+
+- **Layout** - a screen-shaped board with a **Left edge**, a **Right edge**
+  and a **Hidden** tray. Drag tiles between the zones and reorder within a
+  zone; changes apply immediately. The right panel appears only while a tile
+  is on it. The System tile is just another tile - it starts on the right,
+  drag it wherever you want.
+- **Appearance** - glass-card opacity and an optional hairline border.
+- **Display** - which monitor the dashboard lives on.
+- **Weather** - the city for the Weather and Sun tiles.
+- **Focus Timer** - the work / break lengths (the cog on the Focus tile
+  jumps straight here).
+
+Everything is remembered automatically - no config file to edit.
 
 The Weather and Sun tiles share their location with the Omarchy bar weather
 widget (`~/.local/state/omarchy/settings/weather.json`) - set it from either
@@ -76,7 +86,7 @@ then launches it right away. Safe to re-run - that's also how you update.
 
 No config file to touch afterwards: the panels attach to your laptop screen
 automatically (or the first screen otherwise), and you pick a different output
-from the dashboard's **DISPLAY** picker (double-click the dashboard). QML edits
+from the **Display** page of Dashboard Settings (double-click any tile). QML edits
 hot-reload while it's running. [`Config.qml`](Config.qml) is only for edge
 cases: `screenName` as a fallback output when the picker is on "Automatic", or
 `pingHost` if `1.1.1.1` doesn't work for you.

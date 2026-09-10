@@ -31,6 +31,22 @@ Item {
     property real glassAlpha: 0.5
     property bool glassBorder: false
 
+    // ── Layout tokens ────────────────────────────────────────────────
+    // Plain numbers (no theming) shared by the settings modal and its
+    // controls so spacing / radius / type stay consistent in one place.
+    readonly property int spacing1: 6
+    readonly property int spacing2: 12
+    readonly property int spacing3: 20
+    readonly property int radiusS: 8
+    readonly property int radiusM: 10
+    readonly property int radiusL: 16
+    readonly property int fontCaption: 9
+    readonly property int fontSmall: 11
+    readonly property int fontBody: 12
+    readonly property int fontTitle: 16
+    readonly property int animFast: 120
+    readonly property int animMed: 160
+
     // The concrete monospace / Nerd Font family (what `monospace` resolves to,
     // e.g. "JetBrainsMono Nerd Font") - matches the Omarchy bar, so glyphs like
     // the weather icons render the same. Resolved once at startup.
