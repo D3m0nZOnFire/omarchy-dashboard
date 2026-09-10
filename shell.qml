@@ -102,6 +102,9 @@ Scope {
     // Focus tile work/break lengths (minutes), edited via the cog on the tile.
     property int focusWorkMinutes: 25
     property int focusBreakMinutes: 5
+    // Whether the Focus tile plays a chime when a period ends. Toggled by the
+    // bell on the tile and on the modal's Focus Timer page.
+    property bool focusSound: true
 
     // Resolved placement of one tile, honouring the default.
     function _placeOf(id) {
@@ -140,6 +143,7 @@ Scope {
         shell.tileBorder = tileOrderAdapter.border === true
         shell.focusWorkMinutes  = _clampInt(tileOrderAdapter.focusWork,  1, 180, 25)
         shell.focusBreakMinutes = _clampInt(tileOrderAdapter.focusBreak, 1, 60,  5)
+        shell.focusSound = tileOrderAdapter.focusSound !== false
     }
     // Reads `placement`, or migrates a pre-placement file (old `hidden`
     // array + `rightPanel` bool) the first time it is seen.
@@ -198,6 +202,11 @@ Scope {
         tileOrderAdapter.focusBreak = breakMin
         tileOrderFile.writeAdapter()
     }
+    function saveFocusSound(on) {
+        shell.focusSound = on
+        tileOrderAdapter.focusSound = on
+        tileOrderFile.writeAdapter()
+    }
 
     FileView {
         id: tileOrderFile
@@ -220,6 +229,7 @@ Scope {
             property bool border: false
             property int focusWork: 25
             property int focusBreak: 5
+            property bool focusSound: true
         }
     }
 
@@ -1080,40 +1090,77 @@ Scope {
                     }
                 } }
 
-                // ── FOCUS (pomodoro timer + now playing) ─────────────
+                // ── FOCUS (pomodoro timer) ──────────────────────────
                 Component { id: focusTile; StatCard {
                     id: focusCard
                     label: "Focus"
                     theme: shell._theme
                     Layout.fillWidth: true
 
-                    // Settings cog on the label row - appears only while the
-                    // pointer is over the Focus tile.
+                    // Label-row controls - a chime toggle (bell) and the
+                    // settings cog. Both appear only while the pointer is
+                    // over the Focus tile.
                     headerAccessory: Component {
-                        Item {
-                            implicitWidth: 13; implicitHeight: 13
-                            opacity: (focusCard.hovered || cogArea.containsMouse) ? 1 : 0
-                            visible: opacity > 0
-                            Behavior on opacity { NumberAnimation { duration: 120 } }
-                            Image {
-                                id: cogImg
-                                anchors.fill: parent
-                                source: Qt.resolvedUrl("assets/cog.svg")
-                                sourceSize: Qt.size(26, 26)
-                                fillMode: Image.PreserveAspectFit
-                                visible: false
+                        Row {
+                            spacing: 9
+
+                            // ── Chime on/off ──
+                            Item {
+                                implicitWidth: 13; implicitHeight: 13
+                                anchors.verticalCenter: parent.verticalCenter
+                                opacity: (focusCard.hovered || bellArea.containsMouse) ? 1 : 0
+                                visible: opacity > 0
+                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                                Image {
+                                    id: bellImg
+                                    anchors.fill: parent
+                                    source: Qt.resolvedUrl(shell.focusSound ? "assets/bell.svg" : "assets/bell-off.svg")
+                                    sourceSize: Qt.size(26, 26)
+                                    fillMode: Image.PreserveAspectFit
+                                    visible: false
+                                }
+                                ColorOverlay {
+                                    anchors.fill: bellImg
+                                    source: bellImg
+                                    color: bellArea.containsMouse ? _fg(0.95)
+                                         : _fg(shell.focusSound ? 0.55 : 0.35)
+                                }
+                                MouseArea {
+                                    id: bellArea
+                                    anchors { fill: parent; margins: -6 }
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: shell.saveFocusSound(!shell.focusSound)
+                                }
                             }
-                            ColorOverlay {
-                                anchors.fill: cogImg
-                                source: cogImg
-                                color: cogArea.containsMouse ? _fg(0.95) : _fg(0.4)
-                            }
-                            MouseArea {
-                                id: cogArea
-                                anchors { fill: parent; margins: -7 }
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: reorderModal.open("focus")
+
+                            // ── Settings cog ──
+                            Item {
+                                implicitWidth: 13; implicitHeight: 13
+                                anchors.verticalCenter: parent.verticalCenter
+                                opacity: (focusCard.hovered || cogArea.containsMouse) ? 1 : 0
+                                visible: opacity > 0
+                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                                Image {
+                                    id: cogImg
+                                    anchors.fill: parent
+                                    source: Qt.resolvedUrl("assets/cog.svg")
+                                    sourceSize: Qt.size(26, 26)
+                                    fillMode: Image.PreserveAspectFit
+                                    visible: false
+                                }
+                                ColorOverlay {
+                                    anchors.fill: cogImg
+                                    source: cogImg
+                                    color: cogArea.containsMouse ? _fg(0.95) : _fg(0.4)
+                                }
+                                MouseArea {
+                                    id: cogArea
+                                    anchors { fill: parent; margins: -6 }
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: reorderModal.open("focus")
+                                }
                             }
                         }
                     }
@@ -1152,6 +1199,17 @@ Scope {
                     }
                     Process { id: notifyProc; running: false }
 
+                    // Chime when a period ends, if enabled. The freedesktop
+                    // "complete" sound at 80% (paplay volume is 0-65536).
+                    Process { id: chimeProc; running: false }
+                    function _chime() {
+                        if (!shell.focusSound) return
+                        chimeProc.running = false
+                        chimeProc.command = ["paplay", "--volume=52429",
+                            "/usr/share/sounds/freedesktop/stereo/complete.oga"]
+                        chimeProc.running = true
+                    }
+
                     // Pick up length changes from the settings modal when the
                     // matching period is idle and untouched.
                     Connections {
@@ -1173,32 +1231,10 @@ Scope {
                         onTriggered: {
                             focusCard.remaining -= 1
                             if (focusCard.remaining <= 0) {
+                                focusCard._chime()
                                 focusCard._notifyEnd()
                                 focusCard._advance()
                             }
-                        }
-                    }
-
-                    // MPRIS active-player pick - same pattern as the Media tile.
-                    property int _mpTick: 0
-                    property var activePlayer: {
-                        _mpTick
-                        const list = Mpris.players ? Mpris.players.values : []
-                        for (var i = 0; i < list.length; i++) if (list[i].isPlaying) return list[i]
-                        for (var j = 0; j < list.length; j++) if (list[j].trackTitle) return list[j]
-                        return null
-                    }
-                    readonly property bool hasMedia: activePlayer !== null &&
-                        (activePlayer.trackTitle !== "" || activePlayer.trackArtist !== "")
-
-                    Instantiator {
-                        model: Mpris.players
-                        delegate: Connections {
-                            required property var modelData
-                            target: modelData
-                            function onIsPlayingChanged() { if (focusCard) focusCard._mpTick++ }
-                            Component.onCompleted:  { if (focusCard) focusCard._mpTick++ }
-                            Component.onDestruction: { if (focusCard) focusCard._mpTick++ }
                         }
                     }
 
@@ -1217,92 +1253,11 @@ Scope {
 
                     Text {
                         Layout.fillWidth: true
-                        text: (focusCard.mode === 0 ? "WORK SESSION" : "BREAK")
-                              + (focusCard.activePlayer && focusCard.activePlayer.isPlaying ? " · MUSIC ON" : "")
+                        text: focusCard.mode === 0 ? "WORK SESSION" : "BREAK"
                         color: _fg(0.5)
                         font.pixelSize: 10
                         font.letterSpacing: 1
                         elide: Text.ElideRight
-                    }
-
-                    // Now playing
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 2
-                        visible: focusCard.hasMedia
-                        spacing: 0
-                        Text {
-                            Layout.fillWidth: true
-                            text:  focusCard.activePlayer ? (focusCard.activePlayer.trackTitle || "-") : ""
-                            color: _fg(0.8)
-                            font.pixelSize: 12
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text:  focusCard.activePlayer
-                                   ? (focusCard.activePlayer.trackArtist || focusCard.activePlayer.identity || "")
-                                   : ""
-                            color: _fg(0.4)
-                            font.pixelSize: 10
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    // Media transport (only when a player is active)
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        visible: focusCard.hasMedia
-                        spacing: 20
-
-                        Item { Layout.fillWidth: true }
-                        Text {
-                            text: "◀◀"
-                            font.pixelSize: 12
-                            color: focusCard.activePlayer && focusCard.activePlayer.canGoPrevious ? _fg(0.8) : _fg(0.2)
-                            MouseArea {
-                                anchors { fill: parent; margins: -6 }
-                                enabled: focusCard.activePlayer && focusCard.activePlayer.canGoPrevious
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: focusCard.activePlayer.previous()
-                            }
-                        }
-                        Item {
-                            width: 15; height: 15
-                            Text {
-                                anchors.centerIn: parent
-                                visible: !(focusCard.activePlayer && focusCard.activePlayer.isPlaying)
-                                text: "▶"
-                                font.pixelSize: 15
-                                color: _fg(0.9)
-                            }
-                            Row {
-                                anchors.centerIn: parent
-                                visible: focusCard.activePlayer && focusCard.activePlayer.isPlaying
-                                spacing: 3
-                                Rectangle { width: 4; height: 13; radius: 1; color: _fg(0.9) }
-                                Rectangle { width: 4; height: 13; radius: 1; color: _fg(0.9) }
-                            }
-                            MouseArea {
-                                anchors { fill: parent; margins: -6 }
-                                enabled: focusCard.activePlayer && focusCard.activePlayer.canTogglePlaying
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: focusCard.activePlayer.togglePlaying()
-                            }
-                        }
-                        Text {
-                            text: "▶▶"
-                            font.pixelSize: 12
-                            color: focusCard.activePlayer && focusCard.activePlayer.canGoNext ? _fg(0.8) : _fg(0.2)
-                            MouseArea {
-                                anchors { fill: parent; margins: -6 }
-                                enabled: focusCard.activePlayer && focusCard.activePlayer.canGoNext
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: focusCard.activePlayer.next()
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
                     }
 
                     // ── Timer controls ──────────────────────────────
@@ -1413,12 +1368,14 @@ Scope {
         weatherLocation: weather.locName
         workMinutes: shell.focusWorkMinutes
         breakMinutes: shell.focusBreakMinutes
+        focusSoundEnabled: shell.focusSound
         onPlacementEdited: (o, p) => shell.savePlacement(o, p)
         onScreenEdited: name => shell.saveScreenName(name)
         onBlurEdited: pct => shell.saveBlurPercent(pct)
         onBorderEdited: on => shell.saveTileBorder(on)
         onWeatherLocationEdited: name => shell.setWeatherLocation(name)
         onFocusTimersEdited: (work, brk) => shell.saveFocusTimers(work, brk)
+        onFocusSoundEdited: on => shell.saveFocusSound(on)
     }
 
     // ════════════════════════════════════════════════════════════

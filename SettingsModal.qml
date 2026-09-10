@@ -25,6 +25,7 @@ PanelWindow {
     property string weatherLocation: ""
     property int workMinutes: 25
     property int breakMinutes: 5
+    property bool focusSoundEnabled: true
 
     // ── Outputs ──
     signal placementEdited(var newOrder, var newPlacement)
@@ -33,6 +34,7 @@ PanelWindow {
     signal borderEdited(bool on)
     signal weatherLocationEdited(string name)
     signal focusTimersEdited(int work, int brk)
+    signal focusSoundEdited(bool on)
 
     property string page: "layout"
     property bool opened: false
@@ -821,6 +823,24 @@ PanelWindow {
                     text: "Length of each work and break period in the Focus tile."
                     color: modal._fg(0.35)
                     font.pixelSize: 10; wrapMode: Text.WordWrap
+                }
+
+                Item { width: 1; height: 6 }
+
+                Row {
+                    spacing: 14
+                    UiToggle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        theme: modal.theme
+                        checked: modal.focusSoundEnabled
+                        onToggled: on => modal.focusSoundEdited(on)
+                    }
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 1
+                        Text { text: "Chime when a period ends"; color: modal._fg(0.9); font.pixelSize: 12 }
+                        Text { text: "A short sound alongside the desktop notification."; color: modal._fg(0.35); font.pixelSize: 10 }
+                    }
                 }
             }
         }

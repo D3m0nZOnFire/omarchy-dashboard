@@ -24,9 +24,10 @@ your Omarchy theme live, no restart needed.
   prev/play-pause/next controls, for whichever player is currently active
 - Weather tile (wttr.in) - temperature, condition, feels-like, humidity, wind
 - Sun tile - sunrise/sunset times with a live sun-position arc
-- Focus tile - a work/break (Pomodoro) timer with the now-playing track and
-  transport controls; set the work/break lengths from the cog on the tile, and
-  get an Omarchy desktop notification when each period ends
+- Focus tile - a work/break (Pomodoro) timer; set the work/break lengths from
+  the cog on the tile, get an Omarchy desktop notification and a chime when
+  each period ends (mute the chime with the bell on the tile or from the
+  Focus Timer settings page)
 - Neofetch-style System tile (host, kernel, uptime, WM, theme, CPU, GPU, memory)
 - Live theme sync with Omarchy
 - Put any tile on the left edge, the right edge, or hide it - see below
@@ -67,6 +68,7 @@ location is auto-detected from your IP.
 | `lm-sensors` | CPU temps | `lm_sensors` |
 | `inotify-tools` | Live theme/state watching | `inotify-tools` |
 | `curl` | Weather / Sun tiles (wttr.in) | `curl` |
+| `paplay` & `sound-theme-freedesktop` | Focus tile chime | `libpulse`, `sound-theme-freedesktop` (both ship with Omarchy) |
 | coreutils | `ping`, `df`, `awk`, `hostname`, `uname` | already on your system |
 
 Run `sudo sensors-detect` once if you've never configured `sensors`, or temp
