@@ -53,8 +53,8 @@ category rail on the left:
   jumps straight here).
 - **About** - the installed version and an **Update now** button: it updates
   to the newest tagged release, installs any new dependencies and re-syncs the
-  Hyprland blur / autostart config (a terminal opens for the steps that need
-  your password). This is the everyday way to update; re-running the install
+  post-boot autostart hook (a terminal opens for the steps that need your
+  password). This is the everyday way to update; re-running the install
   script does the same thing. It refuses if you have local edits to tracked
   files.
 
@@ -89,14 +89,19 @@ bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboa
 ```
 
 One command: installs the dependencies, clones into
-`~/.config/quickshell/dashboard`, enables the frosted-glass blur in
-`looknfeel.lua`, and sets the dashboard to **auto-start** with Hyprland. It
-then launches it right away. It checks out the newest tagged release, not
-bleeding `main`.
+`~/.config/quickshell/dashboard`, and registers an `omarchy hook install
+post-boot` hook so the dashboard **auto-starts** with Hyprland. It then
+launches it right away. It checks out the newest tagged release, not bleeding
+`main`.
+
+Nothing under `~/.config/hypr/` is ever touched - the frosted-glass blur is
+requested by the dashboard itself at runtime (Quickshell's `BackgroundEffect`,
+over the `ext-background-effect-v1` Wayland protocol), and autostart goes
+through Omarchy's own post-boot hooks instead of an `autostart.lua` edit.
 
 **Updating:** Dashboard Settings -> **About** -> *Update now* (or just re-run
 the install command). Both move you to the latest release.
-`~/.config/quickshell/dashboard/uninstall.sh` backs the config changes out.
+`~/.config/quickshell/dashboard/uninstall.sh` backs the hook out.
 
 No config file to touch afterwards: the panels attach to your laptop screen
 automatically (or the first screen otherwise), and you pick a different output
@@ -130,44 +135,29 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
    qs -c dashboard -d     # detached; or add to autostart
    ```
 
-   Autostart on Omarchy - add to `~/.config/hypr/autostart.lua`:
+   Autostart on Omarchy - install a post-boot hook instead of editing
+   `autostart.lua` (see [`hooks/post-boot.sh`](hooks/post-boot.sh)):
 
-   ```lua
-   o.launch_on_start("qs -c dashboard")
+   ```sh
+   omarchy hook install post-boot ~/.config/quickshell/dashboard/hooks/post-boot.sh
    ```
 
-3. **Enable Hyprland background blur** - required. The cards are translucent by
-   design; without blur they're just washed-out gray boxes.
+   Vanilla Hyprland has no post-boot hook system - add to `hyprland.conf`
+   instead: `exec-once = qs -c dashboard`.
 
-   Omarchy (`~/.config/hypr/looknfeel.lua`):
-
-   ```lua
-   hl.config({
-     decoration = { blur = { enabled = true, size = 6, passes = 3 } },
-   })
-
-   hl.layer_rule({
-     match = { namespace = "quickshell:dashboard" },
-     blur = true,
-     xray = true,
-     ignore_alpha = 0.2,
-   })
-   ```
-
-   Vanilla Hyprland (`hyprland.conf`):
-
-   ```
-   decoration {
-     blur { enabled = true; size = 6; passes = 3 }
-   }
-
-   layerrule = blur, quickshell:dashboard
-   layerrule = xray, quickshell:dashboard
-   layerrule = ignorealpha 0.2, quickshell:dashboard
-   ```
-
-   Then `hyprctl reload`. (`ignore_alpha` skips blurring the fully transparent
-   gaps between cards - drop it if you want those blurred too.)
+3. **Blur needs Hyprland >= 0.56.0** and **Quickshell >= 0.3** (`hyprctl
+   version` / `qs --version`) - both ship the `ext-background-effect-v1`
+   Wayland protocol the dashboard uses to request its own blur at runtime, no
+   `layer_rule` needed. On Omarchy, Hyprland still ships
+   `decoration.blur.enabled = false` by default; the dashboard flips that on
+   for you live (`hyprctl dispatch 'hl.config(...)'`, not a file edit) and
+   keeps it in sync with the **Appearance** page's blur picker - off again
+   when you pick "Transparent". No action needed on your part. On vanilla
+   Hyprland there's no Lua config API for the dashboard to call, so set
+   `decoration { blur { enabled = true } }` yourself in `hyprland.conf` - the
+   protocol request still works, only the auto-toggle is Omarchy-specific. On
+   older Hyprland/Quickshell the cards still render, just without blur -
+   washed-out gray boxes rather than glass.
 
 </details>
 
@@ -179,8 +169,9 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
   `omarchy-theme-color --all` works.
 - **Wrong monitor**: set `screenName` in `Config.qml` to the output you want
   (see `hyprctl monitors` for names).
-- **Flat gray cards, no blur**: blur isn't on, or `hyprctl reload` didn't take
-  - check `hyprctl getoption decoration:blur:enabled`.
+- **Flat gray cards, no blur**: check `hyprctl version` (needs >= 0.56.0) and
+  `qs --version` (needs >= 0.3); on vanilla Hyprland, check
+  `hyprctl getoption decoration:blur:enabled` is `true`.
 - **Media tile says "Nothing playing"**: it needs a running player that
   exposes MPRIS - most do (Spotify, browsers playing audio/video, VLC, mpv
   with the `mpris` plugin, etc.).

@@ -3,11 +3,14 @@
 #
 #   bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboard/main/install.sh)
 #
-# Clones (or updates) the dashboard, installs its dependencies, turns on the
-# frosted-glass blur, and wires it into Hyprland's autostart. Safe to re-run -
-# that is also how you update. Tracks tagged releases (vX.Y.Z), not raw main;
-# see RELEASING.md. Targets Omarchy's Lua hypr config; for vanilla Hyprland see
-# the README's "Manual setup" section. Back it out with ./uninstall.sh.
+# Clones (or updates) the dashboard, installs its dependencies, and wires it
+# into Omarchy's post-boot hooks so it autostarts. Safe to re-run - that is
+# also how you update. Tracks tagged releases (vX.Y.Z), not raw main; see
+# RELEASING.md. Never touches ~/.config/hypr/* - blur is requested by the
+# dashboard itself at runtime (see shell.qml), and autostart goes through
+# `omarchy hook install`, not an autostart.lua edit. Requires Omarchy (uses
+# the `omarchy` CLI); for vanilla Hyprland see the README's "Manual setup"
+# section. Back it out with ./uninstall.sh.
 #
 # Track a branch tip instead of releases (dev testing):
 #   BRANCH=dev bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboard/dev/install.sh)
@@ -18,9 +21,9 @@ REPO_URL="https://github.com/D3m0nZOnFire/omarchy-dashboard"
 BRANCH="${BRANCH:-main}"
 DEST="$HOME/.config/quickshell/dashboard"
 HYPR="$HOME/.config/hypr"
-LOOKNFEEL="$HYPR/looknfeel.lua"
-AUTOSTART="$HYPR/autostart.lua"
-NS="quickshell:dashboard"
+HOOK_TYPE="post-boot"
+HOOK_SRC="$DEST/hooks/post-boot.sh"
+HOOK_DEST="$HOME/.config/omarchy/hooks/$HOOK_TYPE.d/$(basename "$HOOK_SRC")"
 BEGIN="-- >>> omarchy-dashboard (managed) >>>"
 END="-- <<< omarchy-dashboard (managed) <<<"
 
@@ -61,8 +64,8 @@ sync_to_release() {
 
 # --- a. preflight -----------------------------------------------------------
 command -v pacman >/dev/null || die "This installer is for Arch/Omarchy (no pacman found)."
-[ -f "$LOOKNFEEL" ] && [ -f "$AUTOSTART" ] || die \
-  "Expected $LOOKNFEEL and $AUTOSTART (Omarchy Lua config). See the README's Manual setup section."
+command -v omarchy >/dev/null || die \
+  "The 'omarchy' command wasn't found. See the README's Manual setup section for vanilla Hyprland."
 
 # --- b. clone / update -----------------------------------------------------
 # Default (BRANCH=main): $DEST tracks the newest vX.Y.Z release tag. Setting
@@ -115,34 +118,36 @@ else
   say "All dependencies present."
 fi
 
-# --- helper: append the managed block to a lua file ------------------------
-append_block() { # $1 = file, $2... = lines
-  local file="$1"; shift
-  { printf '\n%s\n' "$BEGIN"; printf '%s\n' "$@"; printf '%s\n' "$END"; } >>"$file"
-}
-
-# --- d. blur config ------------------------------------------------------
-if grep -q "$NS" "$LOOKNFEEL"; then
-  say "Blur already configured in looknfeel.lua - leaving it."
-else
-  say "Enabling dashboard blur in looknfeel.lua"
-  append_block "$LOOKNFEEL" \
-    'hl.config({ decoration = { blur = { enabled = true, size = 6, passes = 3 } } })' \
-    'hl.layer_rule({' \
-    "  match = { namespace = \"$NS\" }," \
-    '  blur = true,' \
-    '  xray = true,' \
-    '  ignore_alpha = 0.2,' \
-    '})'
+# --- d. remove any pre-hook install ---------------------------------------
+# Versions before the ext-background-effect blur rework edited
+# ~/.config/hypr/looknfeel.lua and autostart.lua directly (marked with the
+# BEGIN/END banner below). Someone updating from one of those - the normal
+# path is re-running this script, not uninstall.sh - would otherwise keep
+# the old namespace-wide layer_rule, which blurs the whole panel again and
+# fights the new per-tile blur. Strip it here too, not just on uninstall.
+reload_needed=false
+for file in "$HYPR/looknfeel.lua" "$HYPR/autostart.lua"; do
+  [ -f "$file" ] || continue
+  if grep -qF -- "$BEGIN" "$file"; then
+    say "Removing old managed block from $file"
+    awk -v b="$BEGIN" -v e="$END" '
+      $0 == b { skip = 1 }
+      !skip   { if ($0 == "" && prev == "") next; print; prev = $0 }
+      $0 == e { skip = 0 }
+    ' "$file" >"$file.tmp" && mv "$file.tmp" "$file"
+    reload_needed=true
+  fi
+done
+if $reload_needed && command -v hyprctl >/dev/null && hyprctl version >/dev/null 2>&1; then
+  hyprctl reload >/dev/null 2>&1 || true
 fi
 
-# --- e. autostart ------------------------------------------------------
-if grep -Eq 'quickshell/dashboard|-c dashboard' "$AUTOSTART"; then
-  say "Autostart already set in autostart.lua - leaving it."
-else
-  say "Adding dashboard to autostart.lua"
-  append_block "$AUTOSTART" 'o.launch_on_start("qs -c dashboard")'
-fi
+# --- e. autostart --------------------------------------------------------
+# `omarchy hook install` copies $HOOK_SRC into ~/.config/omarchy/hooks/
+# post-boot.d/ (overwriting any previous copy), which Omarchy's own base
+# Hyprland config already runs on every login - no autostart.lua edit needed.
+say "Installing the autostart hook"
+omarchy hook install "$HOOK_TYPE" "$HOOK_SRC" >/dev/null
 
 # --- f. sensors nudge -------------------------------------------------
 if ! sensors 2>/dev/null | grep -Eq 'Core|Package|temp'; then
@@ -150,11 +155,21 @@ if ! sensors 2>/dev/null | grep -Eq 'Core|Package|temp'; then
 fi
 
 # --- g. apply now -------------------------------------------------------
-if command -v hyprctl >/dev/null && hyprctl version >/dev/null 2>&1; then
-  hyprctl reload >/dev/null 2>&1 || true
-fi
-if ! pgrep -f '(quickshell|qs) .*(-c dashboard|quickshell/dashboard)' >/dev/null 2>&1; then
+# A running instance already hot-reloaded shell.qml as soon as step b's git
+# merge touched it - including its own compositor-blur sync - *before* step
+# d's hyprctl reload re-read the (now legacy-free) config files and reset
+# decoration.blur.enabled back to file default. So a plain "leave it running"
+# would silently land on blur-off. If we just migrated a legacy install,
+# restart it instead of leaving it running, so it re-syncs blur cleanly
+# after the config files have already settled.
+running=$(pgrep -f '(quickshell|qs) .*(-c dashboard|quickshell/dashboard)' || true)
+if [ -z "$running" ]; then
   say "Launching the dashboard"
+  qs -c dashboard >/dev/null 2>&1 & disown
+elif $reload_needed; then
+  say "Restarting the dashboard to re-sync blur after the legacy config cleanup"
+  kill $running 2>/dev/null || true
+  sleep 1
   qs -c dashboard >/dev/null 2>&1 & disown
 else
   say "Dashboard already running - restart Hyprland or 'qs -c dashboard' to pick up changes."
@@ -165,10 +180,11 @@ cat <<EOF
 
 $(say "Done.")
   - dashboard   -> $DEST
-  - blur        -> $LOOKNFEEL
-  - autostart   -> $AUTOSTART (starts on next login too)
+  - autostart   -> $HOOK_DEST (starts on next login too)
 
-If the tiles look wrong, run 'qs -c dashboard' in a terminal to see errors.
+Blur is requested by the dashboard itself at runtime - nothing under
+~/.config/hypr/ was touched. If the tiles look wrong, run 'qs -c dashboard'
+in a terminal to see errors.
 Update later from Dashboard Settings -> About, or by re-running this script.
 Undo with: $DEST/uninstall.sh
 EOF

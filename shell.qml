@@ -90,13 +90,31 @@ Scope {
     readonly property real blurAlpha: shell._blurAlphaFor(shell.blurPercent)
     function _blurAlphaFor(pct) {
         switch (pct) {
-            case 0:   return 0.0    // fully transparent (below Hyprland ignore_alpha=0.2, so no blur either)
+            case 0:   return 0.0    // fully transparent - compositor blur is skipped too, see _syncCompositorBlur
             case 25:  return 0.3
             case 75:  return 0.75
             case 100: return 1.0
             default:  return 0.5    // Medium / unknown
         }
     }
+    // Hyprland ships decoration.blur.enabled=false by default, and that's
+    // the master switch the per-tile BackgroundEffect regions below still
+    // depend on - the ext-background-effect protocol says *where* to blur,
+    // but Hyprland won't render any blur at all until this is on. Requested
+    // live through the Lua config API instead of ever being persisted to
+    // looknfeel.lua, so the dashboard never writes to a Hyprland config
+    // file. It's a global toggle though (not scoped to this app's own
+    // windows), and Hyprland resets it on any config reload, so it's kept
+    // in sync with the BLUR picker - re-asserted at startup and on every
+    // change - rather than set once, and turned back off when the user
+    // picks "Transparent".
+    function _syncCompositorBlur() {
+        var on = shell.blurPercent > 0
+        compositorBlurProc.command = ["hyprctl", "dispatch",
+            "hl.config({decoration={blur={enabled=" + (on ? "true" : "false") + ",size=6,passes=3}}})"]
+        compositorBlurProc.running = true
+    }
+    Process { id: compositorBlurProc; running: false }
     // Whether the glass cards draw a hairline outline. Chosen in the
     // modal's BORDER toggle; off by default.
     property bool tileBorder: false
@@ -116,6 +134,23 @@ Scope {
     // What each panel renders.
     readonly property var leftTiles:  shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "left" })
     readonly property var rightTiles: shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "right" })
+
+    // Collects each visible tile's own blur Region (a child of that tile's
+    // wrapper Item in the panel's Repeater, see leftTileRepeater /
+    // rightTileRepeater below) into the panel-level container Region, so
+    // only the card rectangles blur - not the gaps between them or the
+    // margins around them. Re-run whenever a panel's tile count changes
+    // (tile added/removed/hidden/moved to the other edge).
+    function _rebuildBlurRegions(repeater, container) {
+        var arr = []
+        for (var i = 0; i < repeater.count; i++) {
+            var it = repeater.itemAt(i)
+            if (it && it.blurRegion) arr.push(it.blurRegion)
+        }
+        container.regions = arr
+    }
+    function _rebuildLeftBlur()  { shell._rebuildBlurRegions(leftTileRepeater, leftBlurRegion) }
+    function _rebuildRightBlur() { shell._rebuildBlurRegions(rightTileRepeater, rightBlurRegion) }
 
     // Reconciles the saved order against the known tile ids - drops
     // anything unrecognized, appends any tile missing from a stale file.
@@ -145,6 +180,7 @@ Scope {
         shell.focusWorkMinutes  = _clampInt(tileOrderAdapter.focusWork,  1, 180, 25)
         shell.focusBreakMinutes = _clampInt(tileOrderAdapter.focusBreak, 1, 60,  5)
         shell.focusSound = tileOrderAdapter.focusSound !== false
+        shell._syncCompositorBlur()
     }
     // Reads `placement`, or migrates a pre-placement file (old `hidden`
     // array + `rightPanel` bool) the first time it is seen.
@@ -190,6 +226,7 @@ Scope {
         shell.blurPercent = pct
         tileOrderAdapter.blur = pct
         tileOrderFile.writeAdapter()
+        shell._syncCompositorBlur()
     }
     function saveTileBorder(on) {
         shell.tileBorder = on
@@ -494,6 +531,17 @@ Scope {
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
 
+        // Compositor-native blur via the ext-background-effect-v1 Wayland
+        // protocol, requested straight from QML - no layer_rule needed.
+        // leftBlurRegion is an empty container; shell._rebuildLeftBlur fills
+        // its `regions` list with each tile's own Region (see leftTileRepeater
+        // below), so only the card rectangles blur, not the gaps between
+        // them or the panel's own margins. Hyprland still needs
+        // decoration.blur.enabled on for the render pass itself - see
+        // _syncCompositorBlur.
+        BackgroundEffect.blurRegion: shell.blurPercent > 0 ? leftBlurRegion : null
+        Region { id: leftBlurRegion }
+
         // ── Tile columns ──────────────────────────────────────────────
         // Column count is dynamic: tiles stack top-to-bottom until the
         // next one wouldn't fit the screen's height, then a new column
@@ -511,10 +559,19 @@ Scope {
             spacing: 12
 
             Repeater {
+                id: leftTileRepeater
                 model: shell.leftTiles
+                onCountChanged: Qt.callLater(shell._rebuildLeftBlur)
                 delegate: Item {
+                    id: tileWrap
                     width: 296
                     height: tileLoader.height
+
+                    // Exposed so shell._rebuildLeftBlur can collect just this
+                    // tile's own rectangle into the panel's blur region -
+                    // see the note by leftBlurRegion below.
+                    property var blurRegion: tileBlurRegion
+                    Region { id: tileBlurRegion; item: tileWrap; radius: 16 }
 
                     // Double-click the tile itself (not the empty panel
                     // around it) to open Settings. Sits behind the loaded
@@ -1545,6 +1602,10 @@ Scope {
         exclusionMode:               ExclusionMode.Ignore
         color:                       "transparent"
 
+        // Mirror of leftPanel's blur setup - see the comment there.
+        BackgroundEffect.blurRegion: shell.blurPercent > 0 ? rightBlurRegion : null
+        Region { id: rightBlurRegion }
+
         Flow {
             id: rightFlow
             anchors {
@@ -1561,10 +1622,16 @@ Scope {
             LayoutMirroring.childrenInherit: false
 
             Repeater {
+                id: rightTileRepeater
                 model: shell.rightTiles
+                onCountChanged: Qt.callLater(shell._rebuildRightBlur)
                 delegate: Item {
+                    id: rTileWrap
                     width: 296
                     height: rTileLoader.height
+
+                    property var blurRegion: rTileBlurRegion
+                    Region { id: rTileBlurRegion; item: rTileWrap; radius: 16 }
 
                     MouseArea {
                         anchors.fill: parent

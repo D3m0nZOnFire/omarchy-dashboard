@@ -7,8 +7,9 @@ import "ColorUtil.js" as C
 // "Dashboard Settings" - a categorised settings window. A left rail of
 // pages (Layout / Appearance / Display / Weather / Focus Timer) with the
 // selected page's controls in the pane on the right. Opened by
-// double-clicking any tile. Same full-screen-overlay + card-with-mask
-// pattern as the tiles' blur namespace, so Hyprland frosts the card.
+// double-clicking any tile. Full-screen overlay with an input mask over just
+// the card (so clicks outside it fall through), and its own BackgroundEffect
+// blur region over that same card.
 PanelWindow {
     id: modal
 
@@ -71,6 +72,10 @@ PanelWindow {
     WlrLayershell.keyboardFocus:  modal.opened ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     mask: Region { item: card }
+    // Its own compositor blur region, scoped to just the card - see
+    // shell.qml's panels for the same ext-background-effect-v1 pattern.
+    BackgroundEffect.blurRegion: modal.blurPercent > 0 ? cardBlurRegion : null
+    Region { id: cardBlurRegion; item: card }
 
     function _fg(a) { return C.fg(modal.theme, a) }
 
@@ -684,7 +689,7 @@ PanelWindow {
                     }
                     Text {
                         width: parent.width
-                        text: "Opacity of every glass card. The blur behind them is a Hyprland setting."
+                        text: "Opacity of every glass card. \"Transparent\" also turns off the blur behind them."
                         color: modal._fg(0.35)
                         font.pixelSize: 10; wrapMode: Text.WordWrap
                     }
@@ -1046,7 +1051,7 @@ PanelWindow {
                     wrapMode: Text.WordWrap
                     text: "Updates to the newest tagged release of "
                           + "github.com/D3m0nZOnFire/omarchy-dashboard, installs any new dependencies "
-                          + "and re-syncs the Hyprland blur / autostart config. A terminal opens for "
+                          + "and re-syncs the post-boot autostart hook. A terminal opens for "
                           + "the steps that need your password. Refused if you have local edits to "
                           + "tracked files."
                     color: modal._fg(0.35)
