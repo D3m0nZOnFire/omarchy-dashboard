@@ -26,8 +26,9 @@ Item {
     property color brightMagenta: magenta
 
     // User settings (persisted via shell.qml), not resolved palette values:
-    // alpha of the glass card fill (0.5 = the previous hardcoded default),
-    // and whether the cards draw a hairline outline.
+    // alpha of the glass card tint (kept low/capped - real blur strength is
+    // driven by the compositor, see shell.qml's _blurParamsFor), and
+    // whether the cards draw a hairline outline.
     property real glassAlpha: 0.5
     property bool glassBorder: false
 

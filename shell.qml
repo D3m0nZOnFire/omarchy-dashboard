@@ -83,18 +83,34 @@ Scope {
     // Output the panels are pinned to, chosen in the modal's Display picker.
     // "" means "no override" - fall back to Config.screenName / auto-detect.
     property string screenName: ""
-    // Glass-card opacity, chosen in the modal's BLUR picker. Stored as a
+    // Glass-card tint, chosen in the modal's BLUR picker. Stored as a
     // percentage (one of 0/25/50/75/100); the on-screen alpha is derived
-    // via _blurAlphaFor. 50 = 0.5 = the previous hardcoded default.
+    // via _blurAlphaFor and kept low/capped on purpose - the actual "more
+    // blur" feel comes from _blurParamsFor growing the real compositor blur
+    // radius below, not from painting a more solid color over the card. A
+    // card at full alpha with no blur behind it would just be a flat
+    // rectangle, which is the "fake dark tile" this split avoids.
     property int blurPercent: 50
     readonly property real blurAlpha: shell._blurAlphaFor(shell.blurPercent)
     function _blurAlphaFor(pct) {
         switch (pct) {
             case 0:   return 0.0    // fully transparent - compositor blur is skipped too, see _syncCompositorBlur
-            case 25:  return 0.3
-            case 75:  return 0.75
-            case 100: return 1.0
-            default:  return 0.5    // Medium / unknown
+            case 25:  return 0.25
+            case 75:  return 0.45
+            case 100: return 0.55
+            default:  return 0.35   // Medium / unknown
+        }
+    }
+    // Real compositor blur strength for each preset - size is the blur
+    // radius, passes multiplies its effective spread. Growing these (rather
+    // than just the tint alpha above) is what actually makes higher presets
+    // look "more blurred" instead of "more opaque".
+    function _blurParamsFor(pct) {
+        switch (pct) {
+            case 25:  return { size: 3, passes: 1 }
+            case 75:  return { size: 7, passes: 3 }
+            case 100: return { size: 9, passes: 4 }
+            default:  return { size: 5, passes: 2 }   // Medium / unknown
         }
     }
     // Hyprland ships decoration.blur.enabled=false by default, and that's
@@ -110,8 +126,10 @@ Scope {
     // picks "Transparent".
     function _syncCompositorBlur() {
         var on = shell.blurPercent > 0
+        var p = shell._blurParamsFor(shell.blurPercent)
         compositorBlurProc.command = ["hyprctl", "dispatch",
-            "hl.config({decoration={blur={enabled=" + (on ? "true" : "false") + ",size=6,passes=3}}})"]
+            "hl.config({decoration={blur={enabled=" + (on ? "true" : "false") +
+            ",size=" + p.size + ",passes=" + p.passes + "}}})"]
         compositorBlurProc.running = true
     }
     Process { id: compositorBlurProc; running: false }

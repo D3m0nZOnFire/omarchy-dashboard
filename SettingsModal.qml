@@ -689,7 +689,7 @@ PanelWindow {
                     }
                     Text {
                         width: parent.width
-                        text: "Opacity of every glass card. \"Transparent\" also turns off the blur behind them."
+                        text: "How strongly the desktop blurs behind every glass card. \"Transparent\" turns the blur off entirely."
                         color: modal._fg(0.35)
                         font.pixelSize: 10; wrapMode: Text.WordWrap
                     }
