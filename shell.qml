@@ -314,7 +314,7 @@ Scope {
     // Backs the settings modal's About page. It tracks tagged releases on
     // GitHub (vX.Y.Z), not raw `main`. The check is read-only git run from
     // here; the update itself - fast-forward `main` to the newest release
-    // tag, then a full install.sh re-run (deps, autostart, blur) - runs in a
+    // tag, then a full install.sh re-run (deps, the autostart hook) - runs in a
     // detached terminal via omarchy-launch-terminal, so it survives the
     // hot-reload the new files trigger. install.sh needs a password for the
     // package installs. `-c core.hooksPath=/dev/null` keeps a tampered
@@ -426,13 +426,22 @@ Scope {
                 }
                 reorderModal.updateState = "launching"
                 termProc.running = true
+                launchTimeout.restart()
             }
         }
     }
     // The whole update, in a terminal that outlives this shell's hot-reload:
     // fetch tags over HTTPS, fast-forward `main` to the newest release tag,
-    // then install.sh for deps + autostart + blur. The prompt stays open on
+    // then install.sh for deps + the autostart hook. The prompt stays open on
     // a `read` so the result is visible.
+    //
+    // omarchy-launch-terminal only *requests* a terminal - it doesn't stay
+    // alive as that terminal, so termProc exiting (cleanly or not) doesn't
+    // by itself confirm a window ever opened. Two independent nets, since
+    // this used to just hang on "launching" forever with no feedback at all
+    // if the request silently failed: a non-zero exit is a clear failure,
+    // and if updateState is still "launching" after launchTimeout fires, the
+    // request never visibly succeeded either way.
     Process {
         id: termProc
         running: false
@@ -445,6 +454,26 @@ Scope {
             + "./install.sh; "
             + "ec=$?; echo; read -rp \"Update finished (exit $ec) - press Enter to close \" _",
             "_", shell._repoDir, shell._repoHttps]
+        onExited: (exitCode, exitStatus) => {
+            if (reorderModal.updateState !== "launching") return   // already resolved
+            if (exitCode !== 0) {
+                reorderModal.updateError = "Couldn't open a terminal (omarchy-launch-terminal exited "
+                    + exitCode + "). Run install.sh manually: " + shell._repoDir + "/install.sh"
+                reorderModal.updateState = "error"
+            }
+            // exitCode 0 alone doesn't confirm a window actually opened -
+            // leave launchTimeout to catch that case.
+        }
+    }
+    Timer {
+        id: launchTimeout
+        interval: 8000
+        onTriggered: {
+            if (reorderModal.updateState !== "launching") return
+            reorderModal.updateError = "The update terminal never appeared to open. Run it manually: "
+                + shell._repoDir + "/install.sh"
+            reorderModal.updateState = "error"
+        }
     }
 
     Component.onCompleted: shell._readVersion()

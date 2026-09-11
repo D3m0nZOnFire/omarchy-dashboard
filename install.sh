@@ -95,6 +95,21 @@ else
   $DEV_BRANCH || sync_to_release clone
 fi
 
+# --- b2. re-exec into the just-synced install.sh ---------------------------
+# raw.githubusercontent.com/.../main/install.sh can lag a few seconds behind
+# a just-pushed main (CDN propagation), so `bash <(curl .../main/install.sh)`
+# run right after a release can start executing an install.sh from BEFORE
+# that release - even though sync_to_release above still correctly
+# fast-forwards $DEST's git CONTENT to the new tag (tag fetches aren't
+# affected by that lag). Left alone, that stale running script would finish
+# "successfully" while never knowing the new release added steps c/d/etc.
+# Re-exec into the now-current on-disk script once (guarded against a loop)
+# so everything past this point always runs fresh code, not what curl served.
+if [ -z "${OMARCHY_DASHBOARD_REEXECED:-}" ] && [ -f "$DEST/install.sh" ]; then
+  export OMARCHY_DASHBOARD_REEXECED=1
+  exec bash "$DEST/install.sh" "$@"
+fi
+
 # --- c. dependencies -----------------------------------------------------
 missing=()
 for pkg in qt6-5compat lm_sensors inotify-tools; do
@@ -162,15 +177,24 @@ fi
 # would silently land on blur-off. If we just migrated a legacy install,
 # restart it instead of leaving it running, so it re-syncs blur cleanly
 # after the config files have already settled.
+#
+# setsid, not just `& disown`: when this script is itself running inside a
+# terminal spawned for it (the in-app updater does exactly that), the new
+# process is otherwise still a member of that terminal's systemd scope -
+# `disown` only drops it from bash's own job table, it doesn't escape the
+# cgroup. If that scope gets torn down (e.g. the terminal closing) systemd
+# kills everything still in it, including a plain backgrounded dashboard -
+# so a fully successful update can still end with no dashboard running at
+# all. setsid gives it its own session so it survives the terminal closing.
 running=$(pgrep -f '(quickshell|qs) .*(-c dashboard|quickshell/dashboard)' || true)
 if [ -z "$running" ]; then
   say "Launching the dashboard"
-  qs -c dashboard >/dev/null 2>&1 & disown
+  setsid qs -c dashboard >/dev/null 2>&1 &
 elif $reload_needed; then
   say "Restarting the dashboard to re-sync blur after the legacy config cleanup"
   kill $running 2>/dev/null || true
   sleep 1
-  qs -c dashboard >/dev/null 2>&1 & disown
+  setsid qs -c dashboard >/dev/null 2>&1 &
 else
   say "Dashboard already running - restart Hyprland or 'qs -c dashboard' to pick up changes."
 fi
