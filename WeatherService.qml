@@ -72,6 +72,14 @@ Item {
 
     property int _retries: 0
 
+    // ── Visibility / power gating ──────────────────
+    // Set from shell.qml: true only while the Weather or Sun tile is
+    // actually placed on an edge, so we don't fetch a location nobody is
+    // looking at. onBattery slows the periodic refresh down when unplugged.
+    property bool enabled:   true
+    property bool onBattery: false
+    onEnabledChanged: if (enabled) refresh()
+
     // ── Location file (shared with the Omarchy weather widget) ─────
     FileView {
         id: locFile
@@ -108,6 +116,7 @@ Item {
 
     // ── Fetch ─────────────────────────────────────
     function refresh() {
+        if (!root.enabled) return
         root._retries = 0
         if (!wttrProc.running) wttrProc.running = true
         if (root._hasCoords && !omProc.running) omProc.running = true
@@ -261,9 +270,10 @@ Item {
         onTriggered: if (!wttrProc.running) wttrProc.running = true
     }
 
-    // Periodic refresh.
+    // Periodic refresh (30min on battery). refresh() itself is a no-op
+    // while `enabled` is false (Weather and Sun tiles both hidden).
     Timer {
-        interval: 15 * 60 * 1000
+        interval: root.onBattery ? 30 * 60 * 1000 : 15 * 60 * 1000
         repeat: true
         running: true
         triggeredOnStart: true

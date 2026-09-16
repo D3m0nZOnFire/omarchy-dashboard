@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.UPower
 import Quickshell.Services.Mpris
+import Quickshell.Hyprland
 import Qt5Compat.GraphicalEffects
 
 Scope {
@@ -29,12 +30,60 @@ Scope {
         return Quickshell.screens[0]
     }
 
-    // Shared metrics (accessible from both panels by id)
-    SystemMetrics { id: metrics; pingHost: config.pingHost }
+    // Shared: is the laptop currently running on battery? Slows every
+    // metrics/weather poll down below (see SystemMetrics.qml/WeatherService.qml).
+    // Gated by the Performance page's "Slow down on battery" toggle.
+    readonly property bool _onBattery: shell.throttleOnBattery && UPower.displayDevice
+        ? UPower.displayDevice.state === UPowerDeviceState.Discharging
+        : false
+
+    // Shared: is there any window open on the dashboard's own monitor right
+    // now? Wayland has no true occlusion signal (no compositor tells a
+    // client what's drawn over it - that's deliberate, same reason
+    // screenshotting another app needs a portal), and the generic
+    // Quickshell.Wayland "fullscreen"/"maximized" toplevel flags turned out
+    // not to be the right proxy either: Hyprland is a *tiling* WM, so a
+    // perfectly ordinary tiled window fills the whole workspace (covering
+    // the dashboard's Bottom-layer edges right along with it) without ever
+    // being reported as fullscreen or maximized - those flags only apply to
+    // floating windows. What's actually reliable here is Hyprland's own
+    // workspace state: whether the active workspace on this monitor has any
+    // toplevels on it at all. Empty workspace (just wallpaper) = not
+    // covered; anything open = covered, tiled or not. Fully event-driven via
+    // Hyprland's IPC socket, no polling. Gated by the Performance page's
+    // "Pause when covered" toggle.
+    readonly property var _dashMonitor: shell._mainScreen ? Hyprland.monitorFor(shell._mainScreen) : null
+    readonly property bool _dashboardCovered: {
+        if (!shell.pauseWhenCovered) return false
+        var mon = shell._dashMonitor
+        var ws = mon ? mon.activeWorkspace : null
+        return !!ws && ws.toplevels.values.length > 0
+    }
+
+    // Shared metrics (accessible from both panels by id). Each *Enabled flag
+    // stops that metric's subprocess polling entirely while its tile isn't
+    // placed on either edge, or while the screen is covered - no point
+    // forking nvidia-smi/sensors/ping/df for a tile nobody sees.
+    SystemMetrics {
+        id: metrics
+        pingHost:    config.pingHost
+        onBattery:   shell._onBattery
+        cpuEnabled:  (shell._placeOf("cpu") !== "hidden" || shell._placeOf("memory") !== "hidden") && !shell._dashboardCovered
+        gpuEnabled:  shell._placeOf("gpu") !== "hidden" && !shell._dashboardCovered
+        netEnabled:  shell._placeOf("network") !== "hidden" && !shell._dashboardCovered
+        pingEnabled: shell._placeOf("ping") !== "hidden" && !shell._dashboardCovered
+        diskEnabled: shell._placeOf("disk") !== "hidden" && !shell._dashboardCovered
+    }
 
     // Shared weather data for the Weather and Sun tiles. Location comes from
-    // Omarchy's own weather setting (see WeatherService.qml).
-    WeatherService { id: weather }
+    // Omarchy's own weather setting (see WeatherService.qml). Only polls
+    // while one of those two tiles is actually placed on an edge and the
+    // screen isn't covered.
+    WeatherService {
+        id: weather
+        onBattery: shell._onBattery
+        enabled:   (shell._placeOf("weather") !== "hidden" || shell._placeOf("sun") !== "hidden") && !shell._dashboardCovered
+    }
 
     // Live Omarchy theme palette (accessible from both panels by id).
     // glassAlpha / glassBorder carry the persisted BLUR and BORDER
@@ -142,6 +191,10 @@ Scope {
     // Whether the Focus tile plays a chime when a period ends. Toggled by the
     // bell on the tile and on the modal's Focus Timer page.
     property bool focusSound: true
+    // Power-saving toggles, edited on the modal's Performance page - see
+    // _onBattery / _dashboardCovered above for what each one gates.
+    property bool throttleOnBattery: true
+    property bool pauseWhenCovered:  true
 
     // Resolved placement of one tile, honouring the default.
     function _placeOf(id) {
@@ -198,6 +251,8 @@ Scope {
         shell.focusWorkMinutes  = _clampInt(tileOrderAdapter.focusWork,  1, 180, 25)
         shell.focusBreakMinutes = _clampInt(tileOrderAdapter.focusBreak, 1, 60,  5)
         shell.focusSound = tileOrderAdapter.focusSound !== false
+        shell.throttleOnBattery = tileOrderAdapter.throttleOnBattery !== false
+        shell.pauseWhenCovered  = tileOrderAdapter.pauseWhenCovered  !== false
         shell._syncCompositorBlur()
     }
     // Reads `placement`, or migrates a pre-placement file (old `hidden`
@@ -263,6 +318,20 @@ Scope {
         tileOrderAdapter.focusSound = on
         tileOrderFile.writeAdapter()
     }
+    function saveThrottleOnBattery(on) {
+        shell.throttleOnBattery = on
+        tileOrderAdapter.throttleOnBattery = on
+        tileOrderFile.writeAdapter()
+    }
+    function savePauseWhenCovered(on) {
+        shell.pauseWhenCovered = on
+        tileOrderAdapter.pauseWhenCovered = on
+        tileOrderFile.writeAdapter()
+    }
+    // Re-runs the one-shot nvidia-smi/sensors presence checks (SystemMetrics.qml)
+    // - for after installing GPU drivers or running sensors-detect without
+    // restarting the whole shell.
+    function recheckHardware() { metrics.recheckHardware() }
 
     FileView {
         id: tileOrderFile
@@ -286,6 +355,8 @@ Scope {
             property int focusWork: 25
             property int focusBreak: 5
             property bool focusSound: true
+            property bool throttleOnBattery: true
+            property bool pauseWhenCovered:  true
         }
     }
 
@@ -1081,6 +1152,9 @@ Scope {
                             Image {
                                 anchors.fill: parent
                                 source: mediaCard.activePlayer && mediaCard.activePlayer.trackArtUrl ? mediaCard.activePlayer.trackArtUrl : ""
+                                // Decode at ~2x the 56x56 display size instead of
+                                // whatever resolution the player's art actually is.
+                                sourceSize: Qt.size(112, 112)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 visible: status === Image.Ready
@@ -1618,6 +1692,12 @@ Scope {
         versionSubject: shell.verSubject
         versionDate: shell.verDate
         repoWeb: shell._repoWeb
+        throttleOnBattery: shell.throttleOnBattery
+        pauseWhenCovered:  shell.pauseWhenCovered
+        gpuAvailable:      metrics.gpuAvailable
+        sensorsAvailable:  metrics.sensorsAvailable
+        dashboardCovered:  shell._dashboardCovered
+        onBattery:         shell._onBattery
         onPlacementEdited: (o, p) => shell.savePlacement(o, p)
         onScreenEdited: name => shell.saveScreenName(name)
         onBlurEdited: pct => shell.saveBlurPercent(pct)
@@ -1627,6 +1707,9 @@ Scope {
         onFocusSoundEdited: on => shell.saveFocusSound(on)
         onUpdateCheckRequested: shell.checkForUpdate()
         onUpdateRunRequested: shell.runUpdate()
+        onThrottleOnBatteryEdited: on => shell.saveThrottleOnBattery(on)
+        onPauseWhenCoveredEdited: on => shell.savePauseWhenCovered(on)
+        onRecheckHardwareRequested: shell.recheckHardware()
     }
 
     // ════════════════════════════════════════════════════════════

@@ -33,6 +33,12 @@ PanelWindow {
     property string versionDate: ""
     property string repoWeb: ""
     property string latestVersion: ""    // newest release tag on GitHub, when an update is available
+    property bool throttleOnBattery: true
+    property bool pauseWhenCovered:  true
+    property bool gpuAvailable:      true
+    property bool sensorsAvailable:  true
+    property bool dashboardCovered:  false   // fullscreen/maximized window up right now
+    property bool onBattery:         false   // currently discharging
 
     // ── Outputs ──
     signal placementEdited(var newOrder, var newPlacement)
@@ -44,6 +50,9 @@ PanelWindow {
     signal focusSoundEdited(bool on)
     signal updateCheckRequested()
     signal updateRunRequested()
+    signal throttleOnBatteryEdited(bool on)
+    signal pauseWhenCoveredEdited(bool on)
+    signal recheckHardwareRequested()
 
     property string page: "layout"
     property bool opened: false
@@ -85,6 +94,7 @@ PanelWindow {
         { key: "display",    label: "Display" },
         { key: "weather",    label: "Weather" },
         { key: "focus",      label: "Focus Timer" },
+        { key: "performance",label: "Performance" },
         { key: "about",      label: "About" },
     ]
 
@@ -871,6 +881,131 @@ PanelWindow {
                         spacing: 1
                         Text { text: "Chime when a period ends"; color: modal._fg(0.9); font.pixelSize: 12 }
                         Text { text: "A short sound alongside the desktop notification."; color: modal._fg(0.35); font.pixelSize: 10 }
+                    }
+                }
+            }
+
+            // ===== PERFORMANCE ======================================
+            Column {
+                anchors.fill: parent
+                visible: modal.page === "performance"
+                spacing: 24
+
+                Column {
+                    width: parent.width
+                    spacing: 10
+                    Text {
+                        text: "POWER SAVING"
+                        color: modal._fg(0.35)
+                        font.pixelSize: 9; font.letterSpacing: 1
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 14
+                        UiToggle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            theme: modal.theme
+                            checked: modal.throttleOnBattery
+                            onToggled: on => modal.throttleOnBatteryEdited(on)
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 1
+                            Text { text: "Slow down on battery"; color: modal._fg(0.9); font.pixelSize: 12 }
+                            Text { text: "Halves how often stats refresh while unplugged."; color: modal._fg(0.35); font.pixelSize: 10 }
+                        }
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 14
+                        UiToggle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            theme: modal.theme
+                            checked: modal.pauseWhenCovered
+                            onToggled: on => modal.pauseWhenCoveredEdited(on)
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 1
+                            Text { text: "Pause when the screen is covered"; color: modal._fg(0.9); font.pixelSize: 12 }
+                            Text {
+                                width: 260
+                                wrapMode: Text.WordWrap
+                                text: "Stops updating while any window is open on this monitor's active workspace."
+                                color: modal._fg(0.35); font.pixelSize: 10
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: modal.dashboardCovered
+                              ? "Right now: paused - the screen is covered."
+                              : (modal.onBattery
+                                 ? "Right now: slowed down - running on battery."
+                                 : "Right now: updating at full speed.")
+                        color: modal._fg(0.4)
+                        font.pixelSize: 10
+                    }
+                }
+
+                Rectangle { width: parent.width; height: 1; color: modal._fg(0.1) }
+
+                Column {
+                    width: parent.width
+                    spacing: 10
+                    Text {
+                        text: "HARDWARE"
+                        color: modal._fg(0.35)
+                        font.pixelSize: 9; font.letterSpacing: 1
+                    }
+                    RowLayout {
+                        width: parent.width
+                        Text { Layout.fillWidth: true; text: "GPU monitoring (nvidia-smi)"; color: modal._fg(0.7); font.pixelSize: 12 }
+                        Text {
+                            text: modal.gpuAvailable ? "Detected" : "Not found"
+                            color: modal.gpuAvailable ? (modal.theme ? modal.theme.accent : "#3478F6") : modal._fg(0.4)
+                            font.pixelSize: 12
+                        }
+                    }
+                    RowLayout {
+                        width: parent.width
+                        Text { Layout.fillWidth: true; text: "CPU temps (sensors)"; color: modal._fg(0.7); font.pixelSize: 12 }
+                        Text {
+                            text: modal.sensorsAvailable ? "Detected" : "Not found"
+                            color: modal.sensorsAvailable ? (modal.theme ? modal.theme.accent : "#3478F6") : modal._fg(0.4)
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    // "Recheck" - same outline-pill style as About's "Check for updates".
+                    Rectangle {
+                        width: recheckLabel.implicitWidth + 26
+                        height: 30
+                        radius: modal.theme ? modal.theme.radiusS + 1 : 9
+                        color: recheckArea.containsMouse ? C.accent(modal.theme, 0.12) : "transparent"
+                        border.width: 1
+                        border.color: C.accent(modal.theme, 0.55)
+                        Text {
+                            id: recheckLabel
+                            anchors.centerIn: parent
+                            text: "Recheck"
+                            color: modal.theme ? modal.theme.accent : "#3478F6"
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                        }
+                        MouseArea {
+                            id: recheckArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: modal.recheckHardwareRequested()
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Checked once at startup. Recheck after installing GPU drivers or running sensors-detect."
+                        color: modal._fg(0.35)
+                        font.pixelSize: 10; wrapMode: Text.WordWrap
                     }
                 }
             }

@@ -54,6 +54,42 @@ Item {
 
     readonly property int _maxHistory: 60
 
+    // ── Visibility / power gating ──────────────────
+    // Set from shell.qml: each *Enabled flag tracks whether the tile that
+    // consumes this data is actually placed on an edge (not hidden), so we
+    // don't fork subprocesses for tiles nobody sees. onBattery slows every
+    // timer down when unplugged. gpuAvailable/sensorsAvailable are detected
+    // once at startup so we stop trying forever on hardware that doesn't
+    // have it, instead of failing every cycle.
+    property bool cpuEnabled:  true
+    property bool gpuEnabled:  true
+    property bool netEnabled:  true
+    property bool pingEnabled: true
+    property bool diskEnabled: true
+    property bool onBattery:   false
+    property bool gpuAvailable:     true
+    property bool sensorsAvailable: true
+
+    // Re-poll immediately when a tile is un-hidden, instead of waiting for
+    // the next timer tick and showing stale/zero data in the meantime.
+    onCpuEnabledChanged:  if (cpuEnabled && !cpuProc.running) cpuProc.running = true
+    onGpuEnabledChanged:  if (gpuEnabled && gpuAvailable && !gpuProc.running) gpuProc.running = true
+    onNetEnabledChanged:  if (netEnabled && !netProc.running) netProc.running = true
+    onPingEnabledChanged: if (pingEnabled && !pingProc.running) pingProc.running = true
+    onDiskEnabledChanged: if (diskEnabled && !diskProc.running) diskProc.running = true
+    // Same, but for a hardware recheck finding a GPU/sensors that wasn't
+    // there at startup (see recheckHardware() below).
+    onGpuAvailableChanged:      if (gpuEnabled && gpuAvailable && !gpuProc.running) gpuProc.running = true
+    onSensorsAvailableChanged:  if (cpuEnabled && sensorsAvailable && !tempProc.running) tempProc.running = true
+
+    // Re-runs the one-shot presence checks below - exposed to the Settings
+    // modal's Performance page "Recheck" button, for after installing GPU
+    // drivers or running sensors-detect without restarting the shell.
+    function recheckHardware() {
+        if (!gpuCheckProc.running)      gpuCheckProc.running      = true
+        if (!sensorsCheckProc.running)  sensorsCheckProc.running  = true
+    }
+
     // ── Processes ─────────────────────────────────
 
     // CPU + RAM (all cpu lines + meminfo)
@@ -76,6 +112,28 @@ Item {
         stdout: StdioCollector {
             id: cpuModelOut
             onStreamFinished: root._parseCpuModel(cpuModelOut.text)
+        }
+    }
+
+    // Detected once at startup so gpuProc/tempProc stop being scheduled
+    // forever on machines that don't have the binary, instead of forking
+    // and failing every cycle.
+    Process {
+        id: gpuCheckProc
+        running: true
+        command: ["sh", "-c", "command -v nvidia-smi"]
+        stdout: StdioCollector {
+            id: gpuCheckOut
+            onStreamFinished: root.gpuAvailable = gpuCheckOut.text.trim().length > 0
+        }
+    }
+    Process {
+        id: sensorsCheckProc
+        running: true
+        command: ["sh", "-c", "command -v sensors"]
+        stdout: StdioCollector {
+            id: sensorsCheckOut
+            onStreamFinished: root.sensorsAvailable = sensorsCheckOut.text.trim().length > 0
         }
     }
 
@@ -117,10 +175,13 @@ Item {
         }
     }
 
-    // Ping
+    // Ping - fewer/shorter packets on battery, since each run is a real
+    // blocking subprocess with active network I/O, not just a timer tick.
     Process {
         id: pingProc
-        command: ["ping", "-c3", "-W2", "-q", root.pingHost]
+        command: root.onBattery
+                 ? ["ping", "-c2", "-W1", "-q", root.pingHost]
+                 : ["ping", "-c3", "-W2", "-q", root.pingHost]
         running: false
         stdout: StdioCollector {
             id: pingOut
@@ -141,39 +202,42 @@ Item {
 
     // ── Timers ────────────────────────────────────
 
-    // 2s: CPU + GPU + Network
+    // 2s (4s on battery): CPU + GPU + Network - skipped per-metric when its
+    // tile is hidden, and gpuProc is skipped entirely on machines with no
+    // nvidia-smi.
     Timer {
-        interval: 2000
+        interval: root.onBattery ? 4000 : 2000
         repeat: true
         running: true
         triggeredOnStart: true
         onTriggered: {
-            if (!cpuProc.running)  cpuProc.running  = true
-            if (!gpuProc.running)  gpuProc.running  = true
-            if (!netProc.running)  netProc.running  = true
+            if (root.cpuEnabled && !cpuProc.running) cpuProc.running = true
+            if (root.gpuEnabled && root.gpuAvailable && !gpuProc.running) gpuProc.running = true
+            if (root.netEnabled && !netProc.running) netProc.running = true
         }
     }
 
-    // 10s: temperatures + ping (ping does 3 packets ≈ 3s per run)
+    // 10s (20s on battery): temperatures + ping (ping does 3 packets ≈ 3s
+    // per run, less on battery - see pingProc above).
     Timer {
-        interval: 10000
+        interval: root.onBattery ? 20000 : 10000
         repeat: true
         running: true
         triggeredOnStart: true
         onTriggered: {
-            if (!tempProc.running) tempProc.running = true
-            if (!pingProc.running) pingProc.running = true
+            if (root.cpuEnabled && root.sensorsAvailable && !tempProc.running) tempProc.running = true
+            if (root.pingEnabled && !pingProc.running) pingProc.running = true
         }
     }
 
-    // 30s: disk
+    // 30s (60s on battery): disk
     Timer {
-        interval: 30000
+        interval: root.onBattery ? 60000 : 30000
         repeat: true
         running: true
         triggeredOnStart: true
         onTriggered: {
-            if (!diskProc.running) diskProc.running = true
+            if (root.diskEnabled && !diskProc.running) diskProc.running = true
         }
     }
 
