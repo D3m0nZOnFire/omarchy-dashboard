@@ -537,7 +537,11 @@ Scope {
     // pattern, which would also match this very command line) and the
     // terminal closes itself; on failure the prompt stays open on a `read`
     // so the error is visible. setsid + -d so the new instance outlives the
-    // terminal's systemd scope - see the note in install.sh.
+    // terminal's systemd scope - see the note in install.sh. The restart
+    // polls `qs list` rather than sleeping a fixed time: `-n` silently
+    // skips the launch if the old instance hasn't finished exiting yet,
+    // which left no dashboard at all, so it waits for the old one to go,
+    // then confirms the new one is up before closing the terminal.
     //
     // omarchy-launch-terminal only *requests* a terminal - it doesn't stay
     // alive as that terminal, so termProc exiting (cleanly or not) doesn't
@@ -557,11 +561,15 @@ Scope {
             + "git -c core.hooksPath=/dev/null merge --ff-only \"$tag\" && "
             + "./install.sh; "
             + "ec=$?; "
+            + "up() { qs list -c dashboard 2>/dev/null | grep -q '^Instance'; }; "
             + "if [ $ec -eq 0 ]; then "
             + "echo; echo 'Update finished - restarting the dashboard'; "
-            + "qs kill -c dashboard >/dev/null 2>&1; sleep 1; "
-            + "setsid qs -c dashboard -d -n >/dev/null 2>&1; sleep 1; exit 0; fi; "
-            + "echo; read -rp \"Update failed (exit $ec) - press Enter to close \" _",
+            + "qs kill -c dashboard >/dev/null 2>&1; "
+            + "for i in $(seq 50); do up || break; sleep 0.2; done; "
+            + "setsid qs -c dashboard -d -n >/dev/null 2>&1; "
+            + "for i in $(seq 25); do up && exit 0; sleep 0.2; done; "
+            + "echo 'The dashboard did not come back up - run: qs -c dashboard'; ec=1; fi; "
+            + "echo; read -rp \"Something went wrong (exit $ec) - press Enter to close \" _",
             "_", shell._repoDir, shell._repoHttps]
         onExited: (exitCode, exitStatus) => {
             if (reorderModal.updateState !== "launching") return   // already resolved
