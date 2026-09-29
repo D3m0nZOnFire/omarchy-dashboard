@@ -525,7 +525,7 @@ Scope {
                     return
                 }
                 reorderModal.updateState = "launching"
-                termProc.running = true
+                termProc.startDetached()
                 launchTimeout.restart()
             }
         }
@@ -538,18 +538,15 @@ Scope {
     // terminal closes itself; on failure the prompt stays open on a `read`
     // so the error is visible. setsid + -d so the new instance outlives the
     // terminal's systemd scope - see the note in install.sh. The restart
-    // polls `qs list` rather than sleeping a fixed time: `-n` silently
-    // skips the launch if the old instance hasn't finished exiting yet,
-    // which left no dashboard at all, so it waits for the old one to go,
-    // then confirms the new one is up before closing the terminal.
+    // polls `qs list` - waits for the old instance to go, then confirms the
+    // new one is up - rather than sleeping a fixed time.
     //
-    // omarchy-launch-terminal only *requests* a terminal - it doesn't stay
-    // alive as that terminal, so termProc exiting (cleanly or not) doesn't
-    // by itself confirm a window ever opened. Two independent nets, since
-    // this used to just hang on "launching" forever with no feedback at all
-    // if the request silently failed: a non-zero exit is a clear failure,
-    // and if updateState is still "launching" after launchTimeout fires, the
-    // request never visibly succeeded either way.
+    // Started with startDetached(), never `running = true`:
+    // omarchy-launch-terminal exec()s all the way down into the terminal
+    // itself, so an attached termProc *is* the terminal - and Quickshell
+    // stops its running Processes on a clean exit, so the `qs kill` above
+    // took the terminal (and the relaunch after it) down with the dashboard.
+    // Detached, nothing reports back, so launchTimeout is the only net.
     Process {
         id: termProc
         running: false
@@ -571,16 +568,6 @@ Scope {
             + "echo 'The dashboard did not come back up - run: qs -c dashboard'; ec=1; fi; "
             + "echo; read -rp \"Something went wrong (exit $ec) - press Enter to close \" _",
             "_", shell._repoDir, shell._repoHttps]
-        onExited: (exitCode, exitStatus) => {
-            if (reorderModal.updateState !== "launching") return   // already resolved
-            if (exitCode !== 0) {
-                reorderModal.updateError = "Couldn't open a terminal (omarchy-launch-terminal exited "
-                    + exitCode + "). Run install.sh manually: " + shell._repoDir + "/install.sh"
-                reorderModal.updateState = "error"
-            }
-            // exitCode 0 alone doesn't confirm a window actually opened -
-            // leave launchTimeout to catch that case.
-        }
     }
     Timer {
         id: launchTimeout
