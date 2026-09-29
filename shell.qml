@@ -170,9 +170,10 @@ Scope {
     // looknfeel.lua, so the dashboard never writes to a Hyprland config
     // file. It's a global toggle though (not scoped to this app's own
     // windows), and Hyprland resets it on any config reload, so it's kept
-    // in sync with the BLUR picker - re-asserted at startup and on every
-    // change - rather than set once, and turned back off when the user
-    // picks "Transparent".
+    // in sync with the BLUR picker - re-asserted at startup, on every
+    // change, and after every Hyprland config reload (see the
+    // configreloaded listener below) - rather than set once, and turned
+    // back off when the user picks "Transparent".
     function _syncCompositorBlur() {
         var on = shell.blurPercent > 0
         var p = shell._blurParamsFor(shell.blurPercent)
@@ -182,6 +183,16 @@ Scope {
         compositorBlurProc.running = true
     }
     Process { id: compositorBlurProc; running: false }
+    // A config reload (file save under ~/.config/hypr, monitor hotplug,
+    // Omarchy toggles...) resets decoration.blur back to the config file's
+    // value, leaving the cards as a bare faint tint - re-assert ours.
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "configreloaded")
+                Qt.callLater(shell._syncCompositorBlur)
+        }
+    }
     // Whether the glass cards draw a hairline outline. Chosen in the
     // modal's BORDER toggle; off by default.
     property bool tileBorder: false
@@ -521,8 +532,12 @@ Scope {
     }
     // The whole update, in a terminal that outlives this shell's hot-reload:
     // fetch tags over HTTPS, fast-forward `main` to the newest release tag,
-    // then install.sh for deps + the autostart hook. The prompt stays open on
-    // a `read` so the result is visible.
+    // then install.sh for deps + the autostart hook. On success the
+    // dashboard is restarted on the new release (`qs kill`, not a pgrep
+    // pattern, which would also match this very command line) and the
+    // terminal closes itself; on failure the prompt stays open on a `read`
+    // so the error is visible. setsid + -d so the new instance outlives the
+    // terminal's systemd scope - see the note in install.sh.
     //
     // omarchy-launch-terminal only *requests* a terminal - it doesn't stay
     // alive as that terminal, so termProc exiting (cleanly or not) doesn't
@@ -541,7 +556,12 @@ Scope {
             + "echo \"Updating to $tag\" && "
             + "git -c core.hooksPath=/dev/null merge --ff-only \"$tag\" && "
             + "./install.sh; "
-            + "ec=$?; echo; read -rp \"Update finished (exit $ec) - press Enter to close \" _",
+            + "ec=$?; "
+            + "if [ $ec -eq 0 ]; then "
+            + "echo; echo 'Update finished - restarting the dashboard'; "
+            + "qs kill -c dashboard >/dev/null 2>&1; sleep 1; "
+            + "setsid qs -c dashboard -d -n >/dev/null 2>&1; sleep 1; exit 0; fi; "
+            + "echo; read -rp \"Update failed (exit $ec) - press Enter to close \" _",
             "_", shell._repoDir, shell._repoHttps]
         onExited: (exitCode, exitStatus) => {
             if (reorderModal.updateState !== "launching") return   // already resolved
