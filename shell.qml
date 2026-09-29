@@ -57,7 +57,15 @@ Scope {
         if (!shell.pauseWhenCovered) return false
         var mon = shell._dashMonitor
         var ws = mon ? mon.activeWorkspace : null
-        return !!ws && ws.toplevels.values.length > 0
+        // Only count windows Wayland still knows about: Quickshell
+        // snapshots Hyprland's window list at startup, and a window that
+        // closes during that startup misses its close event and lingers in
+        // `toplevels` forever (Hyprland.refreshToplevels() doesn't drop it
+        // either) - which left the screen "covered" and every poll paused.
+        // The About page's updater hit this every time: its terminal closes
+        // right after relaunching the dashboard. Such a ghost has no
+        // `wayland` handle; every live window does.
+        return !!ws && ws.toplevels.values.some(t => t.wayland !== null)
     }
 
     // Shared metrics (accessible from both panels by id). Each *Enabled flag
