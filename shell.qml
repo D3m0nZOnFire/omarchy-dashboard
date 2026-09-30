@@ -185,7 +185,7 @@ Scope {
     function _syncCompositorBlur() {
         var on = shell.blurPercent > 0
         var p = shell._blurParamsFor(shell.blurPercent)
-        compositorBlurProc.command = ["hyprctl", "dispatch",
+        compositorBlurProc.command = ["hyprctl", "eval",
             "hl.config({decoration={blur={enabled=" + (on ? "true" : "false") +
             ",size=" + p.size + ",passes=" + p.passes + "}}})"]
         compositorBlurProc.running = true

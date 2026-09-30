@@ -55,7 +55,7 @@ manual verification via the running shell is the only check.
   protocol (`BackgroundEffect.blurRegion` on each `PanelWindow`, filled with
   per-tile `Region`s so only the cards blur, not the gaps). On Omarchy,
   `shell.qml` also flips `decoration.blur.enabled` on/off live via
-  `hyprctl dispatch 'hl.config(...)'` to match the Appearance page's picker -
+  `hyprctl eval 'hl.config(...)'` to match the Appearance page's picker -
   never a Hyprland config file edit. Needs Hyprland >= 0.56.0 and Quickshell
   >= 0.3.
 - **Data sources are all external processes/services**, not libraries: CPU

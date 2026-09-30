@@ -150,7 +150,7 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
    Wayland protocol the dashboard uses to request its own blur at runtime, no
    `layer_rule` needed. On Omarchy, Hyprland still ships
    `decoration.blur.enabled = false` by default; the dashboard flips that on
-   for you live (`hyprctl dispatch 'hl.config(...)'`, not a file edit) and
+   for you live (`hyprctl eval 'hl.config(...)'`, not a file edit) and
    keeps it in sync with the **Appearance** page's blur picker - off again
    when you pick "Transparent". No action needed on your part. On vanilla
    Hyprland there's no Lua config API for the dashboard to call, so set
