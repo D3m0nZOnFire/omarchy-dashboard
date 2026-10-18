@@ -1,0 +1,45 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Check the README's Troubleshooting section first; most blank tiles come from a missing command (`nvidia-smi`, `sensors`, `curl`).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Dashboard Settings → Layout
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Dashboard version
+      description: Shown under Dashboard Settings → About, or `git -C ~/.config/quickshell/dashboard describe --tags`
+      placeholder: v2.1.5
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: System
+      description: Output of `qs --version`, `hyprctl version | head -1` and `omarchy-version` (or "vanilla Hyprland"), plus your GPU vendor.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: For example `qs log -c dashboard`. Remove anything private first.
+      render: text
