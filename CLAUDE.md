@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `omarchy-dashboard` is a [Quickshell](https://quickshell.outfoxxed.me/) widget for
 [Omarchy](https://omarchy.org) (Hyprland + Arch): glass-card tiles (system stats,
 weather, Pomodoro focus timer, neofetch-style host info) docked to the left/right
-screen edges. Pure QML + JS, no build step, no package manager, no test suite.
+screen edges. Pure QML + JS, no build step, no package manager, no test suite
+(qmllint in CI is the only automated check).
 
 ## Running / testing changes
 
@@ -20,14 +21,32 @@ qs -c dashboard -d -n  # detached, skip launch if already running (what the post
 
 To exercise a change: run in the foreground, double-click any tile to open
 **Dashboard Settings**, and walk the pages relevant to your change (Layout,
-Appearance, Display, Weather, Focus Timer, About). There are no unit tests -
-manual verification via the running shell is the only check.
+Appearance, Display, Weather, Focus Timer, About). There are no unit tests.
+
+Before pushing, lint (CI runs the same in an Arch container, see
+`.github/workflows/qmllint.yml`; disabled categories and why are in
+`.qmllint.ini`):
+
+```sh
+/usr/lib/qt6/bin/qmllint -I . --max-warnings 0 *.qml tiles/*.qml
+```
 
 ## Architecture
 
-- **`shell.qml`** is the root `Scope` and by far the largest file - it owns
-  all persisted state, two `PanelWindow`s (left/right edges), the tile
-  registry, and the updater. Almost everything wires through `id: shell`.
+- **`shell.qml`** is the root `Scope` - it owns all persisted state, the
+  tile registry (`tileMap`: one `Component` per tile id), the two edge
+  panels and the settings window. Almost everything wires through
+  `id: shell`.
+- **Tiles** live in `tiles/<Name>Tile.qml`, one `StatCard` each. A tile
+  gets the root through its `shell` property and reads everything else
+  through it (`shell._theme`, `shell._fg()`, `metrics`/`weather` via
+  `shell._metrics` / `shell._weather`). In shell.qml, bind it with
+  `shell: _shell`, never `shell: shell`: inside a `Component` block the
+  tile's own `shell` property shadows the root id, so `shell: shell` binds
+  to itself (null). Same reason for `_theme`.
+- **`EdgePanel.qml`** is one screen edge (`edge: "left" | "right"`): a
+  layer-shell `PanelWindow` that lays out its tiles and their blur regions.
+- **`Updater.qml`** is the About page's updater (see below).
 - **Tile placement model**: `defaultTileOrder` (master list of tile ids) +
   a `placement` map (`"left" | "right" | "hidden"` per id) derived into
   `leftTiles` / `rightTiles`. Both panels render their tiles via `Repeater`
@@ -52,7 +71,7 @@ manual verification via the running shell is the only check.
   `.pragma library`) has the shared contrast/luminance helpers used to pick
   readable text/icon colors against the current accent.
 - **Blur**: requested at runtime over the `ext-background-effect-v1` Wayland
-  protocol (`BackgroundEffect.blurRegion` on each `PanelWindow`, filled with
+  protocol (`BackgroundEffect.blurRegion` on each `EdgePanel`, filled with
   per-tile `Region`s so only the cards blur, not the gaps). On Omarchy,
   `shell.qml` also flips `decoration.blur.enabled` on/off live via
   `hyprctl eval 'hl.config(...)'` to match the Appearance page's picker -
@@ -66,7 +85,7 @@ manual verification via the running shell is the only check.
   Omarchy bar's weather widget reads from
   `~/.local/state/omarchy/settings/weather.json`, including geocoding on
   location change so both stay in sync).
-- **Updater** (`shell.qml`, backs the Settings "About" page): read-only
+- **Updater** (`Updater.qml`, backs the Settings "About" page): read-only
   `git fetch --tags` + comparison against the newest `vX.Y.Z` tag to check
   for updates; the actual update re-runs `install.sh` in a spawned terminal
   (needs sudo for deps). It refuses to update if the checkout has local edits

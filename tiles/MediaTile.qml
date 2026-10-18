@@ -20,7 +20,10 @@ StatCard {
     property int _mpTick: 0
     property var activePlayer: {
         _mpTick // qmllint disable confusing-expression-statement
+        // stock Quickshell 0.3.2's type info lacks ObjectModel.values
+        // qmllint disable missing-property
         const list = Mpris.players ? Mpris.players.values : []
+        // qmllint enable missing-property
         for (var i = 0; i < list.length; i++) if (list[i].isPlaying) return list[i]
         for (var i = 0; i < list.length; i++) if (list[i].trackTitle) return list[i]
         return null

@@ -1,0 +1,22 @@
+name: qmllint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qmllint:
+    runs-on: ubuntu-latest
+    # Arch, so qmllint can see Quickshell's QML types (quickshell is in extra).
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Qt and Quickshell
+        run: pacman -Syu --noconfirm --needed qt6-declarative qt6-5compat quickshell
+      - name: Lint every QML file
+        # Settings (disabled categories, and why) are in .qmllint.ini.
+        run: /usr/lib/qt6/bin/qmllint -I . --max-warnings 0 *.qml tiles/*.qml

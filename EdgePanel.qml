@@ -65,7 +65,10 @@ PanelWindow { // qmllint disable uncreatable-type
             left:  panel._right ? undefined : parent.left;  leftMargin:  8
             right: panel._right ? parent.right : undefined; rightMargin: 8
         }
+        // stock Quickshell 0.3.2's type info lacks ShellScreen.height
+        // qmllint disable missing-property
         height: Math.max(1, (panel.screen ? panel.screen.height : 1000) - 40 - 8)
+        // qmllint enable missing-property
         flow: Flow.TopToBottom
         spacing: 12
         // On the right edge, mirror the layout direction so the first

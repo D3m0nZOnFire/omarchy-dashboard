@@ -346,7 +346,10 @@ Scope {
         onLoaded:         shell._applyLoadedTileOrder()
         onAdapterUpdated: shell._applyLoadedTileOrder()
 
+        // stock Quickshell 0.3.2's type info lacks FileViewAdapter
+        // qmllint disable unresolved-type
         JsonAdapter {
+        // qmllint enable unresolved-type
             id: tileOrderAdapter
             property var order: shell.defaultTileOrder
             property var placement: ({})

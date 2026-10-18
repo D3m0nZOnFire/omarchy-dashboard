@@ -100,7 +100,7 @@ That checkout follows `dev`'s HEAD and ignores tags until it's moved back onto
 - **Signed tags:** `git config user.signingkey <key>` then `git tag -s`. The
   updater would need a `git verify-tag` step against a key pinned in the repo
   (separate from your GitHub account) to actually defend against a stolen
-  GitHub token. See the updater block in `shell.qml`.
+  GitHub token. See `Updater.qml`.
 - **Repo size:** the README screenshots are now 1600px WebP (`assets/*.webp`,
   under 1 MB in total), but the old full-size PNGs still dominate `git`
   history (~50 MB). Moving them to the GitHub Release assets or a separate
