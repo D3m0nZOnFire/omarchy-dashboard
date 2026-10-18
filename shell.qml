@@ -233,23 +233,6 @@ Scope {
     readonly property var leftTiles:  shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "left" })
     readonly property var rightTiles: shell.tileOrder.filter(function(id) { return shell._placeOf(id) === "right" })
 
-    // Collects each visible tile's own blur Region (a child of that tile's
-    // wrapper Item in the panel's Repeater, see leftTileRepeater /
-    // rightTileRepeater below) into the panel-level container Region, so
-    // only the card rectangles blur - not the gaps between them or the
-    // margins around them. Re-run whenever a panel's tile count changes
-    // (tile added/removed/hidden/moved to the other edge).
-    function _rebuildBlurRegions(repeater, container) {
-        var arr = []
-        for (var i = 0; i < repeater.count; i++) {
-            var it = repeater.itemAt(i)
-            if (it && it.blurRegion) arr.push(it.blurRegion)
-        }
-        container.regions = arr
-    }
-    function _rebuildLeftBlur()  { shell._rebuildBlurRegions(leftTileRepeater, leftBlurRegion) }
-    function _rebuildRightBlur() { shell._rebuildBlurRegions(rightTileRepeater, rightBlurRegion) }
-
     // Reconciles the saved order against the known tile ids - drops
     // anything unrecognized, appends any tile missing from a stale file.
     function _reconcileTileOrder(raw) {
@@ -494,112 +477,26 @@ Scope {
         return m
     }
     // ════════════════════════════════════════════════════════════
-    //  LEFT PANEL - System Stats
+    //  Edge panels - see EdgePanel.qml
     // ════════════════════════════════════════════════════════════
-    PanelWindow {
-        id: leftPanel
-
-        visible:         shell.leftTiles.length > 0
-        screen:          shell._mainScreen
-        anchors {        top: true; left: true; bottom: true; right: false }
-        implicitWidth:   tileFlow.width + 16   // 8 left + 8 right margins
-
-        WlrLayershell.layer:         WlrLayer.Bottom
-        WlrLayershell.namespace:     "quickshell:dashboard"
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        exclusionMode:               ExclusionMode.Ignore
-        color:                       "transparent"
-
-        // Compositor-native blur via the ext-background-effect-v1 Wayland
-        // protocol, requested straight from QML - no layer_rule needed.
-        // leftBlurRegion is an empty container; shell._rebuildLeftBlur fills
-        // its `regions` list with each tile's own Region (see leftTileRepeater
-        // below), so only the card rectangles blur, not the gaps between
-        // them or the panel's own margins. Hyprland still needs
-        // decoration.blur.enabled on for the render pass itself - see
-        // _syncCompositorBlur.
-        BackgroundEffect.blurRegion: shell.blurPercent > 0 ? leftBlurRegion : null
-        Region { id: leftBlurRegion }
-
-        // ── Tile columns ──────────────────────────────────────────────
-        // Column count is dynamic: tiles stack top-to-bottom until the
-        // next one wouldn't fit the screen's height, then a new column
-        // starts to the right. Screen height is read live from `screen`,
-        // so this reflows if the dashboard ever moves to a different
-        // monitor. No scrolling, no clipped/unreachable tiles.
-        Flow {
-            id: tileFlow
-            anchors {
-                top: parent.top;   topMargin:  40
-                left: parent.left; leftMargin: 8
-            }
-            height: Math.max(1, (leftPanel.screen ? leftPanel.screen.height : 1000) - 40 - 8)
-            flow: Flow.TopToBottom
-            spacing: 12
-
-            Repeater {
-                id: leftTileRepeater
-                model: shell.leftTiles
-                onCountChanged: Qt.callLater(shell._rebuildLeftBlur)
-                delegate: Item {
-                    id: tileWrap
-                    width: 296
-                    height: tileLoader.height
-
-                    // Exposed so shell._rebuildLeftBlur can collect just this
-                    // tile's own rectangle into the panel's blur region -
-                    // see the note by leftBlurRegion below.
-                    property var blurRegion: tileBlurRegion
-                    Region { id: tileBlurRegion; item: tileWrap; radius: 16 }
-
-                    // Double-click the tile itself (not the empty panel
-                    // around it) to open Settings. Sits behind the loaded
-                    // card's own content, so any interactive control inside
-                    // it (e.g. the media tile's playback buttons) still
-                    // takes priority.
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton
-                        onDoubleClicked: reorderModal.open()
-                    }
-
-                    Loader {
-                        id: tileLoader
-                        width: parent.width
-                        sourceComponent: shell.tileMap[modelData]
-                    }
-                }
-            }
-        }
-    }
+    EdgePanel { shell: _shell; edge: "left";  tiles: shell.leftTiles }
+    EdgePanel { shell: _shell; edge: "right"; tiles: shell.rightTiles }
 
     // ════════════════════════════════════════════════════════════
     //  Tile registry - Components shared by the left and right panels
     // ════════════════════════════════════════════════════════════
-
-                Component { id: cpuTile; CpuTile { shell: _shell } }
-
-                Component { id: memoryTile; MemoryTile { shell: _shell } }
-
-                Component { id: gpuTile; GpuTile { shell: _shell } }
-
-                Component { id: batteryTile; BatteryTile { shell: _shell } }
-
-                Component { id: diskTile; DiskTile { shell: _shell } }
-
-                Component { id: networkTile; NetworkTile { shell: _shell } }
-
-                Component { id: pingTile; PingTile { shell: _shell } }
-
-                Component { id: mediaTile; MediaTile { shell: _shell } }
-
-                Component { id: weatherTile; WeatherTile { shell: _shell } }
-
-                Component { id: sunTile; SunTile { shell: _shell } }
-
-                Component { id: focusTile; FocusTile { shell: _shell } }
-
-                Component { id: systemTile; SystemTile { shell: _shell } }
+    Component { id: cpuTile; CpuTile { shell: _shell } }
+    Component { id: memoryTile; MemoryTile { shell: _shell } }
+    Component { id: gpuTile; GpuTile { shell: _shell } }
+    Component { id: batteryTile; BatteryTile { shell: _shell } }
+    Component { id: diskTile; DiskTile { shell: _shell } }
+    Component { id: networkTile; NetworkTile { shell: _shell } }
+    Component { id: pingTile; PingTile { shell: _shell } }
+    Component { id: mediaTile; MediaTile { shell: _shell } }
+    Component { id: weatherTile; WeatherTile { shell: _shell } }
+    Component { id: sunTile; SunTile { shell: _shell } }
+    Component { id: focusTile; FocusTile { shell: _shell } }
+    Component { id: systemTile; SystemTile { shell: _shell } }
 
     // Settings window - opened by double-clicking any tile or card.
     SettingsModal {
@@ -641,72 +538,5 @@ Scope {
         onThrottleOnBatteryEdited: on => shell.saveThrottleOnBattery(on)
         onPauseWhenCoveredEdited: on => shell.savePauseWhenCovered(on)
         onRecheckHardwareRequested: shell.recheckHardware()
-    }
-
-    // ════════════════════════════════════════════════════════════
-    //  RIGHT PANEL - user-placed tiles on the right screen edge
-    // ════════════════════════════════════════════════════════════
-    // Mirror of the left panel: tiles stack top-to-bottom and overflow
-    // into a new column toward screen centre. Shown only when at least
-    // one tile is assigned to the right edge (Settings → Layout).
-    PanelWindow {
-        id: rightPanel
-
-        visible:         shell.rightTiles.length > 0
-        screen:          shell._mainScreen
-        anchors {        top: true; right: true; bottom: true }
-        implicitWidth:   rightFlow.width + 16
-
-        WlrLayershell.layer:         WlrLayer.Bottom
-        WlrLayershell.namespace:     "quickshell:dashboard"
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        exclusionMode:               ExclusionMode.Ignore
-        color:                       "transparent"
-
-        // Mirror of leftPanel's blur setup - see the comment there.
-        BackgroundEffect.blurRegion: shell.blurPercent > 0 ? rightBlurRegion : null
-        Region { id: rightBlurRegion }
-
-        Flow {
-            id: rightFlow
-            anchors {
-                top: parent.top;     topMargin:   40
-                right: parent.right; rightMargin: 8
-            }
-            height: Math.max(1, (rightPanel.screen ? rightPanel.screen.height : 1000) - 40 - 8)
-            flow: Flow.TopToBottom
-            spacing: 12
-            // Mirror the layout direction so the first column hugs the
-            // screen edge (like the left panel) and extra columns grow
-            // inward. Only the Flow itself is mirrored, not tile content.
-            LayoutMirroring.enabled: true
-            LayoutMirroring.childrenInherit: false
-
-            Repeater {
-                id: rightTileRepeater
-                model: shell.rightTiles
-                onCountChanged: Qt.callLater(shell._rebuildRightBlur)
-                delegate: Item {
-                    id: rTileWrap
-                    width: 296
-                    height: rTileLoader.height
-
-                    property var blurRegion: rTileBlurRegion
-                    Region { id: rTileBlurRegion; item: rTileWrap; radius: 16 }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton
-                        onDoubleClicked: reorderModal.open()
-                    }
-
-                    Loader {
-                        id: rTileLoader
-                        width: parent.width
-                        sourceComponent: shell.tileMap[modelData]
-                    }
-                }
-            }
-        }
     }
 }
