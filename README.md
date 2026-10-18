@@ -8,11 +8,11 @@ your Omarchy theme live, no restart needed.
 
 | Tokyo Night | White | Vantablack | Catppuccin |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
-| ![Tokyo Night](assets/Tokyo-Night.png) | ![White](assets/White.png) | ![Vantablack](assets/Vantablack.png) | ![Catppuccin](assets/Catppuccin.png) |
+| ![Tokyo Night](assets/Tokyo-Night.webp) | ![White](assets/White.webp) | ![Vantablack](assets/Vantablack.webp) | ![Catppuccin](assets/Catppuccin.webp) |
 
 | Ethereal | Matte Black | Everforest | Osaka Jade |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
-| ![Ethereal](assets/Ethereal.png) | ![Matte Black](assets/Matte-Black.png) | ![Everforest](assets/Everforest.png) | ![Osaka Jade](assets/Osaka-Jade.png) |
+| ![Ethereal](assets/Ethereal.webp) | ![Matte Black](assets/Matte-Black.webp) | ![Everforest](assets/Everforest.webp) | ![Osaka Jade](assets/Osaka-Jade.webp) |
 
 ## Features
 

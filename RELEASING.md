@@ -101,7 +101,8 @@ That checkout follows `dev`'s HEAD and ignores tags until it's moved back onto
   updater would need a `git verify-tag` step against a key pinned in the repo
   (separate from your GitHub account) to actually defend against a stolen
   GitHub token. See the updater block in `shell.qml`.
-- **Repo size:** the theme screenshots in `assets/*.png` dominate `git`
+- **Repo size:** the README screenshots are now 1600px WebP (`assets/*.webp`,
+  under 1 MB in total), but the old full-size PNGs still dominate `git`
   history (~50 MB). Moving them to the GitHub Release assets or a separate
   `media` branch and BFG-cleaning history would shrink clones a lot - but it's
   a history rewrite, so every existing clone would need re-cloning.
