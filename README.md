@@ -36,6 +36,13 @@ your Omarchy theme live, no restart needed.
 
 ## Install
 
+> **Requires:** Omarchy (Arch + Hyprland). The installer stops if `omarchy` or
+> `pacman` is missing, then installs whatever you don't have yet of
+> `qt6-5compat`, `lm_sensors`, `inotify-tools`, `quickshell-git` (AUR, through
+> `yay` or `paru`) and, on NVIDIA machines, `nvidia-utils`. Blur needs
+> Hyprland >= 0.56 and Quickshell >= 0.3. GPU tile: NVIDIA only. Vanilla
+> Hyprland: see *Manual setup* below.
+
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/D3m0nZOnFire/omarchy-dashboard/main/install.sh)
 ```
@@ -167,8 +174,9 @@ tiles stay blank.
   `sensors`, `ping -c1 1.1.1.1`, `df -k /`).
 - **Theme doesn't update**: check `inotifywait` is installed and
   `omarchy-theme-color --all` works.
-- **Wrong monitor**: set `screenName` in `Config.qml` to the output you want
-  (see `hyprctl monitors` for names).
+- **Wrong monitor**: double-click any tile -> **Display** and pick the
+  output. If the picker is on "Automatic" and still chooses the wrong screen,
+  set `screenName` in `Config.qml` (see `hyprctl monitors` for names).
 - **Flat gray cards, no blur**: check `hyprctl version` (needs >= 0.56.0) and
   `qs --version` (needs >= 0.3); on vanilla Hyprland, check
   `hyprctl getoption decoration:blur:enabled` is `true`.
