@@ -76,9 +76,9 @@ Item {
     // Set from shell.qml: true only while the Weather or Sun tile is
     // actually placed on an edge, so we don't fetch a location nobody is
     // looking at. onBattery slows the periodic refresh down when unplugged.
-    property bool enabled:   true
+    property bool active:    true
     property bool onBattery: false
-    onEnabledChanged: if (enabled) refresh()
+    onActiveChanged: if (active) refresh()
 
     // ── Location file (shared with the Omarchy weather widget) ─────
     FileView {
@@ -102,7 +102,7 @@ Item {
     function _parseLocation(txt) {
         var name = "", lat = null, lon = null
         try {
-            var o = JSON.parse(txt)
+            const o = JSON.parse(txt)
             if (o && typeof o.name === "string") name = o.name
             if (o && o.latitude !== undefined && o.longitude !== undefined) {
                 lat = parseFloat(o.latitude)
@@ -116,7 +116,7 @@ Item {
 
     // ── Fetch ─────────────────────────────────────
     function refresh() {
-        if (!root.enabled) return
+        if (!root.active) return
         root._retries = 0
         if (!wttrProc.running) wttrProc.running = true
         if (root._hasCoords && !omProc.running) omProc.running = true
@@ -153,8 +153,8 @@ Item {
         var raw = String(txt || "").trim()
         if (!raw) { root._scheduleRetry(); return }
         try {
-            var d = JSON.parse(raw)
-            var cur = d.current_condition && d.current_condition[0]
+            const d = JSON.parse(raw)
+            const cur = d.current_condition && d.current_condition[0]
             if (!cur) { root._scheduleRetry(); return }
 
             // Only fill conditions from wttr until Open-Meteo answers (or if
@@ -168,11 +168,11 @@ Item {
             }
             root.desc = (cur.weatherDesc && cur.weatherDesc[0] && cur.weatherDesc[0].value) || ""
 
-            var area = d.nearest_area && d.nearest_area[0]
-            var areaName = area && area.areaName && area.areaName[0] ? area.areaName[0].value : ""
+            const area = d.nearest_area && d.nearest_area[0]
+            const areaName = area && area.areaName && area.areaName[0] ? area.areaName[0].value : ""
             root.displayLocation = root.locName || areaName
 
-            var astro = d.weather && d.weather[0] && d.weather[0].astronomy && d.weather[0].astronomy[0]
+            const astro = d.weather && d.weather[0] && d.weather[0].astronomy && d.weather[0].astronomy[0]
             if (astro) {
                 root.sunriseDate = root._parseClock(astro.sunrise)
                 root.sunsetDate  = root._parseClock(astro.sunset)
@@ -191,8 +191,8 @@ Item {
         var raw = String(txt || "").trim()
         if (!raw) return
         try {
-            var d = JSON.parse(raw)
-            var c = d.current
+            const d = JSON.parse(raw)
+            const c = d.current
             if (!c || c.temperature_2m === undefined || c.temperature_2m === null) return
 
             root.tempC    = String(Math.round(c.temperature_2m))
@@ -271,7 +271,7 @@ Item {
     }
 
     // Periodic refresh (30min on battery). refresh() itself is a no-op
-    // while `enabled` is false (Weather and Sun tiles both hidden).
+    // while `active` is false (Weather and Sun tiles both hidden).
     Timer {
         interval: root.onBattery ? 30 * 60 * 1000 : 15 * 60 * 1000
         repeat: true

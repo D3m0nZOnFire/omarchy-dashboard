@@ -99,7 +99,7 @@ Item {
 
             // Omarchy logo - recolored to the active theme's accent
             Item {
-                width: 72; height: 72
+                Layout.preferredWidth: 72; Layout.preferredHeight: 72
 
                 Image {
                     id: omarchyLogo
@@ -124,7 +124,7 @@ Item {
                     text: root._hostname || "-"
                     color: root.textColor
                     font.pixelSize: 20
-                    font.weight: Font.SemiBold ?? 63
+                    font.weight: Font.DemiBold
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
@@ -140,7 +140,7 @@ Item {
         // Separator
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.08)
         }
 

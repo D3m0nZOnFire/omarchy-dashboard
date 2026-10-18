@@ -20,7 +20,7 @@ StatCard {
             value:     metrics.diskPercent
             fillColor: metrics.diskPercent > 90 ? theme.red
                      : metrics.diskPercent > 75 ? theme.orange : theme.accent
-            width: 72; height: 72
+            Layout.preferredWidth: 72; Layout.preferredHeight: 72
         }
         ColumnLayout {
             Layout.fillWidth: true

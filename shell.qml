@@ -1,13 +1,8 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
-import Quickshell.Widgets
 import Quickshell.Services.UPower
-import Quickshell.Services.Mpris
 import Quickshell.Hyprland
-import Qt5Compat.GraphicalEffects
 import "tiles"
 
 Scope {
@@ -91,7 +86,7 @@ Scope {
     WeatherService {
         id: weather
         onBattery: shell._onBattery
-        enabled:   (shell._placeOf("weather") !== "hidden" || shell._placeOf("sun") !== "hidden") && !shell._dashboardCovered
+        active:    (shell._placeOf("weather") !== "hidden" || shell._placeOf("sun") !== "hidden") && !shell._dashboardCovered
     }
 
     // Live Omarchy theme palette (accessible from both panels by id).
@@ -479,8 +474,8 @@ Scope {
     // ════════════════════════════════════════════════════════════
     //  Edge panels - see EdgePanel.qml
     // ════════════════════════════════════════════════════════════
-    EdgePanel { shell: _shell; edge: "left";  tiles: shell.leftTiles }
-    EdgePanel { shell: _shell; edge: "right"; tiles: shell.rightTiles }
+    EdgePanel { shell: _shell; edge: "left";  tiles: _shell.leftTiles }
+    EdgePanel { shell: _shell; edge: "right"; tiles: _shell.rightTiles }
 
     // ════════════════════════════════════════════════════════════
     //  Tile registry - Components shared by the left and right panels
@@ -502,7 +497,7 @@ Scope {
     SettingsModal {
         id: reorderModal
         screen: shell._mainScreen
-        theme: theme
+        theme: shell._theme
         tileLabels: shell.tileLabels
         order: shell.tileOrder
         placement: shell.placement

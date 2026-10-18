@@ -21,7 +21,7 @@ StatCard {
             spacing: 8
 
             Rectangle {
-                width: 8; height: 8; radius: 4
+                Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
                 color: metrics.pingMs < 0   ? theme.red
                      : metrics.pingMs < 30  ? theme.accent
                      : metrics.pingMs < 100 ? theme.orange : theme.red

@@ -19,7 +19,7 @@ StatCard {
     // normal property bindings once a player is selected.
     property int _mpTick: 0
     property var activePlayer: {
-        _mpTick
+        _mpTick // qmllint disable confusing-expression-statement
         const list = Mpris.players ? Mpris.players.values : []
         for (var i = 0; i < list.length; i++) if (list[i].isPlaying) return list[i]
         for (var i = 0; i < list.length; i++) if (list[i].trackTitle) return list[i]
@@ -63,7 +63,7 @@ StatCard {
         spacing: 10
 
         ClippingRectangle {
-            width: 56; height: 56
+            Layout.preferredWidth: 56; Layout.preferredHeight: 56
             radius: 8
             color: shell._fg(0.06)
 
@@ -109,7 +109,7 @@ StatCard {
             Item {
                 Layout.fillWidth: true
                 Layout.topMargin: 4
-                height: 3
+                Layout.preferredHeight: 3
                 Rectangle { anchors.fill: parent; radius: 1.5; color: shell._fg(0.1) }
                 Rectangle {
                     readonly property real ratio: mediaCard.activePlayer && mediaCard.activePlayer.length > 0
@@ -161,7 +161,7 @@ StatCard {
             // codepoint defaults to colored emoji presentation
             // on most systems, clashing with the plain-text
             // triangles used everywhere else on this tile.
-            width: 15; height: 15
+            Layout.preferredWidth: 15; Layout.preferredHeight: 15
             Text {
                 anchors.centerIn: parent
                 visible: !(mediaCard.activePlayer && mediaCard.activePlayer.isPlaying)

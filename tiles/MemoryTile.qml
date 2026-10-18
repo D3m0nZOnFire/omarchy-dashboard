@@ -21,7 +21,7 @@ StatCard {
             value:     metrics.ramPercent
             fillColor: metrics.ramPercent > 90 ? theme.red
                      : metrics.ramPercent > 75 ? theme.orange : theme.accent
-            width: 72; height: 72
+            Layout.preferredWidth: 72; Layout.preferredHeight: 72
         }
         ColumnLayout {
             Layout.fillWidth: true

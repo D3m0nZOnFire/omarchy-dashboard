@@ -6,7 +6,7 @@ import Quickshell.Wayland
 // (Settings → Layout), stacked top-to-bottom. shell.qml creates one for
 // the left edge and one for the right; a panel is shown only while at
 // least one tile is on its edge.
-PanelWindow {
+PanelWindow { // qmllint disable uncreatable-type
     id: panel
 
     property var shell
@@ -35,13 +35,19 @@ PanelWindow {
     BackgroundEffect.blurRegion: shell && shell.blurPercent > 0 ? panelBlurRegion : null
     Region { id: panelBlurRegion }
 
+    // One tile's wrapper. blurRegion is exposed so _rebuildBlur can collect
+    // just this tile's own rectangle into the panel's blur region.
+    component TileSlot: Item {
+        property Region blurRegion
+    }
+
     // Re-run whenever the tile count changes (tile added/removed/hidden/
     // moved to the other edge).
     function _rebuildBlur() {
         var arr = []
         for (var i = 0; i < tileRepeater.count; i++) {
-            var it = tileRepeater.itemAt(i)
-            if (it && it.blurRegion) arr.push(it.blurRegion)
+            const slot = tileRepeater.itemAt(i) as TileSlot
+            if (slot && slot.blurRegion) arr.push(slot.blurRegion)
         }
         panelBlurRegion.regions = arr
     }
@@ -73,14 +79,11 @@ PanelWindow {
             id: tileRepeater
             model: panel.tiles
             onCountChanged: Qt.callLater(panel._rebuildBlur)
-            delegate: Item {
+            delegate: TileSlot {
                 id: tileWrap
                 width: 296
                 height: tileLoader.height
-
-                // Exposed so _rebuildBlur can collect just this tile's own
-                // rectangle into the panel's blur region.
-                property var blurRegion: tileBlurRegion
+                blurRegion: tileBlurRegion
                 Region { id: tileBlurRegion; item: tileWrap; radius: 16 }
 
                 // Double-click the tile itself (not the empty panel

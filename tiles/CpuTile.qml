@@ -23,7 +23,7 @@ StatCard {
             fillColor: metrics.cpuPercent > 95 ? theme.red
                      : metrics.cpuPercent > 80 ? theme.orange : theme.blue
             subText:   metrics.cpuPackageTemp > 0 ? metrics.cpuPackageTemp.toFixed(0) + "°C" : ""
-            width: 72; height: 72
+            Layout.preferredWidth: 72; Layout.preferredHeight: 72
         }
 
         ColumnLayout {
@@ -55,14 +55,14 @@ StatCard {
         id: coreBarsCanvas
         Layout.fillWidth: true
         height: 28
-        property var data: metrics.corePercents
+        property var cores: metrics.corePercents
         // Bound (not read directly in onPaint) so the canvas
         // repaints automatically when the theme changes.
         property color colorLow:  theme.blue
         property color colorMid:  theme.orange
         property color colorHigh: theme.red
         property color colorTrack: shell._fg(0.07)
-        onDataChanged:      requestPaint()
+        onCoresChanged:     requestPaint()
         onWidthChanged:      requestPaint()
         onColorLowChanged:   requestPaint()
         onColorMidChanged:   requestPaint()
@@ -71,7 +71,6 @@ StatCard {
         onPaint: {
             var ctx = getContext("2d")
             ctx.clearRect(0, 0, width, height)
-            const cores = data
             if (!cores || cores.length === 0) return
             const n    = cores.length
             const gap  = 2

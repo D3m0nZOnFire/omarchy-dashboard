@@ -22,7 +22,7 @@ StatCard {
             fillColor: metrics.gpuPercent > 90 ? theme.red
                      : metrics.gpuPercent > 70 ? theme.orange : theme.accent
             subText:   metrics.gpuTempC + "°C"
-            width: 72; height: 72
+            Layout.preferredWidth: 72; Layout.preferredHeight: 72
         }
         ColumnLayout {
             Layout.fillWidth: true

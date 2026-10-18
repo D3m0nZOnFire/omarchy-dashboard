@@ -27,7 +27,7 @@ RowLayout {
         id: btn
         property string glyph: ""
         signal activated()
-        width: 26; height: 30
+        Layout.preferredWidth: 26; Layout.preferredHeight: 30
         radius: root.theme ? root.theme.radiusS : 8
         color: area.containsMouse ? C.fg(root.theme, 0.14) : C.fg(root.theme, 0.06)
         border.width: 1

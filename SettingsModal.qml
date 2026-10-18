@@ -10,7 +10,7 @@ import "ColorUtil.js" as C
 // double-clicking any tile. Full-screen overlay with an input mask over just
 // the card (so clicks outside it fall through), and its own BackgroundEffect
 // blur region over that same card.
-PanelWindow {
+PanelWindow { // qmllint disable uncreatable-type
     id: modal
 
     // ── Inputs (owned by shell.qml, fed back after every edit) ──
@@ -446,7 +446,7 @@ PanelWindow {
                     property string dragZone: ""
                     property int previewLocal: 0
                     readonly property var previewZones: {
-                        modal.boardRev
+                        modal.boardRev // qmllint disable confusing-expression-statement
                         return modal._previewZones(dragId, dragZone, previewLocal)
                     }
 
@@ -543,7 +543,7 @@ PanelWindow {
                             required property string zone
 
                             readonly property int rev: modal.boardRev
-                            readonly property int local: { rev; modal._localIndex(index) }
+                            readonly property int local: { rev; modal._localIndex(index) } // qmllint disable confusing-expression-statement
 
                             readonly property bool isDragged: boardArea.dragId === chip.tileId
                             // Where this chip currently belongs on screen -

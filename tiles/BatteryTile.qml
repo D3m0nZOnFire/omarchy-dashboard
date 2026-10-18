@@ -31,7 +31,7 @@ StatCard {
                 if (pct > 20) return theme.orange
                 return theme.red
             }
-            width: 72; height: 72
+            Layout.preferredWidth: 72; Layout.preferredHeight: 72
         }
 
         ColumnLayout {
