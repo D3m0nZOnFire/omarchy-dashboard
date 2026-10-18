@@ -34,54 +34,6 @@ your Omarchy theme live, no restart needed.
 - Columns adapt automatically: if the tiles don't fit your screen's height,
   extras overflow into a new column instead of running off-screen
 
-## Settings
-
-Double-click any tile to open **Dashboard Settings** - a window with a
-category rail on the left:
-
-- **Layout** - a screen-shaped board with a **Left edge**, a **Right edge**
-  and a **Hidden** tray. Drag tiles between the zones and reorder within a
-  zone; changes apply immediately. The right panel appears only while a tile
-  is on it. Out of the box the system metrics (CPU, GPU, Memory, Disk,
-  Battery, Network, Ping) plus Sun sit on the left, System and Focus on the
-  right, and Media and Weather start hidden - drag any of them wherever you
-  like.
-- **Appearance** - glass-card opacity and an optional hairline border.
-- **Display** - which monitor the dashboard lives on.
-- **Weather** - the city for the Weather and Sun tiles.
-- **Focus Timer** - the work / break lengths (the cog on the Focus tile
-  jumps straight here).
-- **About** - the installed version and an **Update now** button: it updates
-  to the newest tagged release, installs any new dependencies and re-syncs the
-  post-boot autostart hook (a terminal opens for the steps that need your
-  password). This is the everyday way to update; re-running the install
-  script does the same thing. It refuses if you have local edits to tracked
-  files.
-
-Everything is remembered automatically - no config file to edit.
-
-The Weather and Sun tiles share their location with the Omarchy bar weather
-widget (`~/.local/state/omarchy/settings/weather.json`) - set it from either
-place, or with `omarchy-weather-location --set <city>`. With nothing set, the
-location is auto-detected from your IP.
-
-## Dependencies
-
-| Dependency | Used for | Arch package |
-| --- | --- | --- |
-| [Quickshell](https://quickshell.outfoxxed.me/) | Runs the shell | `quickshell-git` (AUR) |
-| Hyprland + [Omarchy](https://omarchy.org) | Live theming | ships with Omarchy |
-| Qt5Compat | Theme-colored Omarchy logo (`ColorOverlay`) | `qt6-5compat` |
-| `nvidia-smi` | GPU stats (NVIDIA only) | `nvidia-utils` |
-| `lm-sensors` | CPU temps | `lm_sensors` |
-| `inotify-tools` | Live theme/state watching | `inotify-tools` |
-| `curl` | Weather / Sun tiles (wttr.in) | `curl` |
-| `paplay` & `sound-theme-freedesktop` | Focus tile chime | `libpulse`, `sound-theme-freedesktop` (both ship with Omarchy) |
-| coreutils | `ping`, `df`, `awk`, `hostname`, `uname` | already on your system |
-
-Run `sudo sensors-detect` once if you've never configured `sensors`, or temp
-tiles stay blank.
-
 ## Install
 
 ```sh
@@ -160,6 +112,54 @@ AMD/Intel, swap in `radeontop` or `intel_gpu_top` and adjust the parser.
    washed-out gray boxes rather than glass.
 
 </details>
+
+## Settings
+
+Double-click any tile to open **Dashboard Settings** - a window with a
+category rail on the left:
+
+- **Layout** - a screen-shaped board with a **Left edge**, a **Right edge**
+  and a **Hidden** tray. Drag tiles between the zones and reorder within a
+  zone; changes apply immediately. The right panel appears only while a tile
+  is on it. Out of the box the system metrics (CPU, GPU, Memory, Disk,
+  Battery, Network, Ping) plus Sun sit on the left, System and Focus on the
+  right, and Media and Weather start hidden - drag any of them wherever you
+  like.
+- **Appearance** - glass-card opacity and an optional hairline border.
+- **Display** - which monitor the dashboard lives on.
+- **Weather** - the city for the Weather and Sun tiles.
+- **Focus Timer** - the work / break lengths (the cog on the Focus tile
+  jumps straight here).
+- **About** - the installed version and an **Update now** button: it updates
+  to the newest tagged release, installs any new dependencies and re-syncs the
+  post-boot autostart hook (a terminal opens for the steps that need your
+  password). This is the everyday way to update; re-running the install
+  script does the same thing. It refuses if you have local edits to tracked
+  files.
+
+Everything is remembered automatically - no config file to edit.
+
+The Weather and Sun tiles share their location with the Omarchy bar weather
+widget (`~/.local/state/omarchy/settings/weather.json`) - set it from either
+place, or with `omarchy-weather-location --set <city>`. With nothing set, the
+location is auto-detected from your IP.
+
+## Dependencies
+
+| Dependency | Used for | Arch package |
+| --- | --- | --- |
+| [Quickshell](https://quickshell.outfoxxed.me/) | Runs the shell | `quickshell-git` (AUR) |
+| Hyprland + [Omarchy](https://omarchy.org) | Live theming | ships with Omarchy |
+| Qt5Compat | Theme-colored Omarchy logo (`ColorOverlay`) | `qt6-5compat` |
+| `nvidia-smi` | GPU stats (NVIDIA only) | `nvidia-utils` |
+| `lm-sensors` | CPU temps | `lm_sensors` |
+| `inotify-tools` | Live theme/state watching | `inotify-tools` |
+| `curl` | Weather / Sun tiles (wttr.in) | `curl` |
+| `paplay` & `sound-theme-freedesktop` | Focus tile chime | `libpulse`, `sound-theme-freedesktop` (both ship with Omarchy) |
+| coreutils | `ping`, `df`, `awk`, `hostname`, `uname` | already on your system |
+
+Run `sudo sensors-detect` once if you've never configured `sensors`, or temp
+tiles stay blank.
 
 ## Troubleshooting
 
